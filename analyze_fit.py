@@ -39,8 +39,10 @@ print("=" * 60)
 print("Fitting Vivacity Polynomial")
 print("=" * 60)
 
-# Fit with verbose output
-fit_result = fit_vivacity_polynomial(load_data, config, verbose=False)
+# Fit with verbose output, using hybrid geometric + pressure-dependent model
+fit_result = fit_vivacity_polynomial(
+    load_data, config, verbose=False, use_form_function=True
+)
 
 print()
 print("=" * 60)
@@ -84,21 +86,22 @@ if abs(second_half_mean - first_half_mean) > 5:
 
 print()
 print("=" * 60)
-print("Vivacity Curve Analysis")
+print("Hybrid Burn Rate Model Analysis")
 print("=" * 60)
 
 Lambda_base = fit_result["Lambda_base"]
-coeffs = fit_result["coeffs"]
-a, b, c, d = coeffs
+alpha = fit_result.get("alpha", 0.0)
+coeffs = (0.0, 0.0, 0.0, 0.0)  # dummy for compatibility
 
 print(f"Lambda_base: {Lambda_base:.6f}")
+print(f"Alpha (pressure correction): {alpha:.6f}")
 print(f"Grain geometry: {config.propellant.grain_geometry}")
 print()
 
-# Evaluate vivacity at different burn fractions
+# Evaluate vivacity at different burn fractions (at reference pressure p=0 for simplicity)
 Z_vals = np.linspace(0, 1, 11)
-print(f"{'Z':>6} {'Λ(Z)':>12} {'π(Z)':>12}")
-print("-" * 32)
+print(f"{'Z':>6} {'Λ(Z,p=0)':>12} {'π(Z)':>12}")
+print("-" * 35)
 for Z in Z_vals:
     Lambda_Z = calc_vivacity(
         Z,
@@ -106,6 +109,8 @@ for Z in Z_vals:
         coeffs,
         use_form_function=True,
         geometry=config.propellant.grain_geometry,
+        p_psi=0.0,  # reference pressure
+        alpha=alpha,
     )
     pi_z = form_function(Z, config.propellant.grain_geometry)
     print(f"{Z:6.2f} {Lambda_Z:12.6f} {pi_z:12.6f}")
@@ -149,7 +154,9 @@ for Lambda_test in lambda_test_vals:
         config_test = metadata_to_config(metadata)
         config_test.charge_mass_gr = charge
         result = solve_ballistics(
-            config_test, Lambda_override=Lambda_test, coeffs_override=coeffs
+            config_test,
+            Lambda_override=Lambda_test,
+            coeffs_override=(1.0, 0.0, 0.0, 0.0),
         )
         predicted_test.append(result["muzzle_velocity_fps"])
 
@@ -159,10 +166,14 @@ for Lambda_test in lambda_test_vals:
     if Lambda_test == Lambda_base:
         print(f"  Lambda = {Lambda_test:.4f}: RMSE = {rmse_test:.2f} fps (current fit)")
     else:
-        print(f"  Lambda = {Lambda_test:.4f}: RMSE = {rmse_test:.2f} fps")
+        print(
+            f"  Lambda = {Lambda_test:.4f}: RMSE = {rmse_test:.4f}: RMSE = {rmse_test:.2f} fps"
+        )
 
 best_lambda_idx = np.argmin(rmse_vals)
-print(f"\nBest single Lambda (no polynomial): {lambda_test_vals[best_lambda_idx]:.4f}")
+print(
+    f"\nBest single Lambda (constant with geometry): {lambda_test_vals[best_lambda_idx]:.4f}"
+)
 print(
     f"Best RMSE achievable with constant Lambda: {rmse_vals[best_lambda_idx]:.2f} fps"
 )

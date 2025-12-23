@@ -307,11 +307,16 @@ def fit_vivacity_polynomial(
 
     # Extract results
     Lambda_base_fit = opt_result.x[0]
-    a_fit, b_fit, c_fit, d_fit = opt_result.x[1:5]
-    coeffs_fit = (a_fit, b_fit, c_fit, d_fit)
-
-    # Extract physics parameters if fitted
-    idx = 5
+    if use_form_function:
+        alpha_fit = opt_result.x[1]
+        coeffs_fit = (0.0, 0.0, 0.0, 0.0)  # dummy
+        a_fit = b_fit = c_fit = d_fit = 0.0
+        idx = 2
+    else:
+        a_fit, b_fit, c_fit, d_fit = opt_result.x[1:5]
+        coeffs_fit = (a_fit, b_fit, c_fit, d_fit)
+        alpha_fit = None
+        idx = 5
     temp_sens_fit = None
     bore_fric_fit = None
     start_p_fit = None
