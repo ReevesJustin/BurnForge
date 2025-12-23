@@ -1,13 +1,12 @@
 """CSV/JSON loaders with metadata parsing and result exporters."""
 
 import json
-import re
 import xml.etree.ElementTree as ET
 from io import StringIO
 import pandas as pd
 
 from .props import BallisticsConfig, PropellantProperties, BulletProperties
-from .database import get_propellant, get_bullet_type, list_propellants
+from .database import list_propellants
 from .utils import (
     MM_TO_IN, GRAMS_TO_GRAINS, KG_TO_GRAINS, CM3_TO_GRAINS_H2O,
     MS_TO_FPS, BAR_TO_PSI

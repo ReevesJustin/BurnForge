@@ -10,7 +10,7 @@ from ballistics.solver import solve_ballistics
 from copy import copy
 
 # Load GRT file
-grt_file = "65CRM_130SMK_N150_Starline_Initial.grtload"
+grt_file = "/home/justin/projects/IB_Solver/data/grt_files/65CM_130SMK_N150_Starline_Initial.grtload"
 metadata, load_data = load_grt_project(grt_file)
 
 # Create base config

@@ -162,30 +162,22 @@ def solve_ballistics(config: BallisticsConfig,
     # Pre-compute heat loss model parameters
     use_convective = (config.heat_loss_model == "convective")
 
-    # Empirical model base (for legacy mode)
-    if not use_convective:
-        E_h_base_empirical = (0.38 * (T_0 - T_1) * D**1.5) / \
-                            (1 + 0.6 * (D**2.175 / C**0.8375)) * 12
-    else:
-        # Convective model parameters (convert units for consistent calculations)
-        h_base = config.h_base  # W/m²·K
+    if use_convective:
+        # Convective model parameters
+        h_base = config.h_base
         h_alpha = config.h_alpha
         h_beta = config.h_beta
         h_gamma = config.h_gamma
-        T_wall = config.T_wall_K  # K
-        P_ref = config.P_ref_psi  # psi
-        T_ref = config.T_ref_K  # K
-        v_ref = config.v_ref_in_s  # in/s
-
-        # Bore surface area per unit length: π × D (inches)
-        # We'll compute incremental heat loss as h × (π×D×dx) × ΔT
-        bore_circumference = math.pi * D  # inches
-
-        # Convert h_base from W/m²·K to ft·lbf/(in²·s·K)
-        # W = J/s, 1 J = 0.737562 ft·lbf
-        # 1 m² = 1550 in²
-        # h_base_imperial = h_base × (0.737562) / (1550) = h_base × 0.000476
-        h_base_imperial = h_base * JOULES_TO_FT_LBF / (IN_TO_M**2 * 144)  # ft·lbf/(in²·s·K)
+        T_wall = config.T_wall_K
+        P_ref = config.P_ref_psi
+        T_ref = config.T_ref_K
+        v_ref = config.v_ref_in_s
+        bore_circumference = math.pi * D
+        h_base_imperial = h_base * JOULES_TO_FT_LBF / (IN_TO_M**2 * 144)
+    else:
+        # Empirical model
+        E_h_base_empirical = (0.38 * (T_0 - T_1) * D**1.5) / \
+                            (1 + 0.6 * (D**2.175 / C**0.8375)) * 12
 
     # Secondary work coefficient
     mu_secondary = config.secondary_work_mu
@@ -232,76 +224,24 @@ def solve_ballistics(config: BallisticsConfig,
         # --- Heat Loss Calculation ---
         if not use_convective:
             # EMPIRICAL MODEL (legacy)
-            # Total heat loss proportional to burn fraction Z
-            E_h = E_h_base_empirical * Z
-
+            E_h = (0.38 * (T_0 - T_1) * D**1.5) / \
+                  (1 + 0.6 * (D**2.175 / C**0.8375)) * 12 * Z
         else:
             # CONVECTIVE MODEL (modern)
-            # Compute instantaneous gas temperature from ideal gas law
-            # P × V = m_gas × R × T_gas
-            # m_gas ≈ C × Z (mass of combusted propellant)
-            # T_gas = (P × V) / (m_gas × R)
-
-            # Compute current pressure (preliminary estimate for heat transfer calc)
-            # This is a fixed-point iteration issue, but for heat loss the
-            # error is negligible. We use previous step's pressure characteristics.
-            m_gas = C * Z if Z > 0.001 else C * 0.001  # Avoid division by zero
-
-            # For temperature estimate, use the energy balance:
-            # P ~ (C × Z × F) / volume for rough estimate
+            m_gas = C * Z if Z > 0.001 else C * 0.001
             P_estimate = max(P_IN, (C * Z * F) / volume) if volume > 0 and Z > 0.001 else P_IN
-
-            # Convert pressure to absolute units for ideal gas law
-            # Imperial units: P [psi], V [in³], m [lbm], R [ft·lbf/(lbm·K)]
-            # PV = m R T → T = PV / (mR)
-            # Note: R_specific ≈ F/T_0 for propellant gases (approximation)
-            R_specific = F / T_0  # ft·lbf/(lbm·K) - propellant-specific gas constant
-
-            # T_gas = (P [psi] × V [in³]) / (m [lbm] × R [ft·lbf/(lbm·K)])
-            # Convert: P [psi] × V [in³] = P × V / 144 [psi·ft³] = P × V / 144 × 144 [lbf/in²·in³]
-            # Actually: P [lbf/in²] × V [in³] / (144 in³/ft³) = P×V/144 [lbf·ft/lbm]
+            R_specific = F / T_0
             T_gas = (P_estimate * volume / 144) / (m_gas * R_specific) if m_gas > 0 else T_1
-            T_gas = max(T_1, min(T_gas, T_0 * 1.5))  # Clamp to reasonable range
+            T_gas = max(T_1, min(T_gas, T_0 * 1.5))
+            v_gas = max(abs(v), 1.0)
 
-            # Approximate gas velocity: v_gas ≈ v_bullet + (burn rate contribution)
-            # Burn rate contribution: dZ/dt relates to gas generation rate
-            # For simplicity: v_gas ~ v_bullet (dominant term) + fraction of dZ/dt effect
-            # More accurate: v_gas ≈ v + k × (dZ/dt) where k ~ characteristic dimension
-            # Use v as primary term (conservative approximation)
-            v_gas = max(abs(v), 1.0)  # Minimum 1 in/s to avoid division by zero
-
-            # Compute time-varying heat transfer coefficient h(t)
             h_t = h_base_imperial * \
                   (P_estimate / P_ref)**h_alpha * \
                   (T_gas / T_ref)**h_beta * \
                   (v_gas / v_ref)**h_gamma
 
-            # Heat loss rate: dE_h/dt = h(t) × A_surface × ΔT
-            # Surface area increment: π × D × dx (where dx is infinitesimal)
-            # For rate: use bore circumference × v (dx/dt)
-            # dE_h/dt = h(t) × (π × D × dx/dt) × (T_gas - T_wall)
-            #         = h(t) × π × D × v × (T_gas - T_wall)
-            # But we need energy loss integrated over path, not rate
-            # In ODE: dE_h/dt enters energy balance as power term
-            # Total heat loss affects energy balance as: E_h_total = ∫ dE_h/dt dt
-
-            # For energy balance, we need cumulative heat loss
-            # This is tricky - we need to integrate dE_h/dt over time
-            # Approximation: use characteristic rate × time or distance
-            # Better: track E_h as 4th state variable, but that changes ODE structure
-
-            # Compromise: Compute instantaneous heat loss rate and apply to energy balance
-            # dE_h/dt represents power lost to walls
-            # In energy balance: subtract (dE_h/dt × dt) = dE_h from available work
-            # For lumped model: E_h ≈ ∫ h(t) × A(x) × ΔT dt
-            # Approximate with current distance traveled:
-            # E_h ≈ h(t) × (π × D × x) × (T_gas - T_wall)
-            # This gives cumulative heat loss based on bore surface area contacted
-
-            delta_T = max(T_gas - T_wall, 0.0)  # Temperature difference
-            bore_surface_area = bore_circumference * x  # in²
-
-            # Energy lost to walls (ft·lbf)
+            delta_T = max(T_gas - T_wall, 0.0)
+            bore_surface_area = bore_circumference * x
             E_h = h_t * bore_surface_area * delta_T if x > 0 else 0.0
 
         # --- Secondary Work Coefficient (Modern Formulation) ---
@@ -329,10 +269,12 @@ def solve_ballistics(config: BallisticsConfig,
 
         if Z >= 1.0 and P_const is not None:
             # Post-burnout: adiabatic expansion with Noble-Abel correction
-            # P × (V - η×C)^γ = constant
-            V_free_burnout = volume_at_burnout - covolume_in3_per_lbm * C if volume_at_burnout else V_free
-            if V_free > 0 and V_free_burnout > 0:
-                P = P_const * (V_free_burnout / V_free) ** gamma
+            if volume_at_burnout is not None:
+                V_free_burnout = volume_at_burnout - covolume_in3_per_lbm * C
+                if V_free > 0 and V_free_burnout > 0:
+                    P = P_const * (V_free_burnout / V_free) ** gamma
+                else:
+                    P = P_IN
             else:
                 P = P_IN
         elif Z < 0.001:
@@ -372,15 +314,15 @@ def solve_ballistics(config: BallisticsConfig,
         """Event function for burnout detection (Z = 1.0)."""
         return y[0] - 1.0
 
-    burnout_event.terminal = True
-    burnout_event.direction = 1  # Trigger on increasing Z
+    burnout_event.terminal = True  # type: ignore
+    burnout_event.direction = 1  # type: ignore
 
     def muzzle_event(t: float, y: np.ndarray) -> float:
         """Event function for muzzle exit (x = L_eff)."""
         return y[2] - L_eff
 
-    muzzle_event.terminal = True
-    muzzle_event.direction = 1  # Trigger on increasing x
+    muzzle_event.terminal = True  # type: ignore
+    muzzle_event.direction = 1  # type: ignore
 
     # Initial conditions: [Z, v, x]
     y0 = np.array([0.0, 0.0, 0.0])
@@ -414,10 +356,9 @@ def solve_ballistics(config: BallisticsConfig,
 
         # Heat loss calculation (matches ODE system)
         if not use_convective:
-            # Empirical model
-            E_h_val = E_h_base_empirical * Z_val
+            E_h_val = (0.38 * (T_0 - T_1) * D**1.5) / \
+                      (1 + 0.6 * (D**2.175 / C**0.8375)) * 12 * Z_val
         else:
-            # Convective model
             m_gas_val = C * Z_val if Z_val > 0.001 else C * 0.001
             P_est = max(P_IN, (C * Z_val * F) / volume_val) if volume_val > 0 and Z_val > 0.001 else P_IN
             R_spec = F / T_0
@@ -449,9 +390,12 @@ def solve_ballistics(config: BallisticsConfig,
         # Pressure calculation with Noble-Abel correction
         if Z_val >= 1.0 and P_const is not None:
             # Post-burnout: adiabatic expansion with Noble-Abel
-            V_free_burnout_val = volume_at_burnout - covolume_in3_per_lbm * C if volume_at_burnout else V_free_val
-            if V_free_val > 0 and V_free_burnout_val > 0:
-                P_val = P_const * (V_free_burnout_val / V_free_val) ** gamma
+            if volume_at_burnout is not None:
+                V_free_burnout_val = volume_at_burnout - covolume_in3_per_lbm * C
+                if V_free_val > 0 and V_free_burnout_val > 0:
+                    P_val = P_const * (V_free_burnout_val / V_free_val) ** gamma
+                else:
+                    P_val = 0
             else:
                 P_val = 0
         else:
@@ -459,7 +403,6 @@ def solve_ballistics(config: BallisticsConfig,
             if V_free_val > 0:
                 P_val = max(0, (C * Z_val * F - energy_loss_val) / V_free_val)
             else:
-                # Safety fallback
                 P_val = max(0, (C * Z_val * F - energy_loss_val) / volume_val) if volume_val > 0 else 0
 
         return P_val
@@ -478,6 +421,7 @@ def solve_ballistics(config: BallisticsConfig,
         if Z_i_clamped >= 0.999 and P_const is None:
             volume_i = V_0 + A * x_i
             P_const = P_i * (volume_i ** gamma)
+            volume_at_burnout = volume_i
 
     # Check for burnout event
     if sol.t_events[0].size > 0:  # Burnout event triggered

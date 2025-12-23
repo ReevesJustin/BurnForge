@@ -1,9 +1,13 @@
-"""Multi-parameter optimization routines with bounds."""
+"""Multi-parameter optimization routines for vivacity fitting.
+
+This module provides functions to fit dynamic vivacity polynomials from
+chronograph data, with optional physics parameter calibration.
+"""
 
 import numpy as np
 from scipy.optimize import minimize
 import pandas as pd
-from copy import copy
+from copy import deepcopy as copy
 
 from .solver import solve_ballistics
 from .burn_rate import validate_vivacity_positive
@@ -13,8 +17,8 @@ from .props import BallisticsConfig
 def fit_vivacity_polynomial(
     load_data: pd.DataFrame,
     config_base: BallisticsConfig,
-    initial_guess: tuple[float, float, float, float, float] | None = None,
-    bounds: tuple | None = None,
+    initial_guess: tuple[float, ...] | None = None,
+    bounds: tuple[tuple[float, float], ...] | None = None,
     regularization: float = 0.0,
     method: str = 'L-BFGS-B',
     verbose: bool = True,
@@ -98,8 +102,7 @@ def fit_vivacity_polynomial(
 
         initial_guess = tuple(initial_guess)
 
-    # Set default bounds
-    # Lambda_base is normalized (vivacity/1450), so typical range is 0.01-0.15
+    # Set default bounds for base parameters
     if bounds is None:
         bounds_lower = [0.01, -2.0, -2.0, -2.0, -2.0]
         bounds_upper = [0.15, 2.0, 2.0, 2.0, 2.0]
@@ -123,11 +126,79 @@ def fit_vivacity_polynomial(
     # Iteration counter for verbose output
     iteration = {'count': 0}
 
+    def _objective_function(params, load_data, config_base, param_names, fit_temp_sensitivity, fit_bore_friction, fit_start_pressure, fit_covolume):
+        """Objective function for scipy.optimize.minimize."""
+
+        # Unpack parameters
+        Lambda_base = params[0]
+        a, b, c, d = params[1:5]
+        coeffs = (a, b, c, d)
+
+        # Extract physics parameters
+        idx = 5
+        temp_sens = params[idx] if fit_temp_sensitivity else config_base.propellant.temp_sensitivity_sigma_per_K
+        idx += 1 if fit_temp_sensitivity else 0
+        bore_fric = params[idx] if fit_bore_friction else config_base.bore_friction_psi
+        idx += 1 if fit_bore_friction else 0
+        start_p = params[idx] if fit_start_pressure else config_base.start_pressure_psi
+        idx += 1 if fit_start_pressure else 0
+        covolume = params[idx] if fit_covolume else config_base.propellant.covolume_m3_per_kg
+
+        # Check vivacity positivity constraint
+        T_prop_K = config_base.temperature_f * 5/9 + 255.372  # Convert to Kelvin
+        if not validate_vivacity_positive(Lambda_base, coeffs, T_prop_K, temp_sens, n_points=50):
+            return 1e10  # Large penalty for invalid parameters
+
+        residuals = []
+        weights = []
+
+        for idx_row, row in load_data.iterrows():
+            # Update charge
+            config = copy(config_base)
+            config.charge_mass_gr = float(row['charge_grains'])
+
+            # Apply physics parameters
+            config.propellant = copy(config.propellant)
+            config.propellant.Lambda_base = Lambda_base
+            config.propellant.poly_coeffs = coeffs
+            config.propellant.temp_sensitivity_sigma_per_K = temp_sens
+            config.propellant.covolume_m3_per_kg = covolume
+            config.bore_friction_psi = bore_fric
+            config.start_pressure_psi = start_p
+
+            # Solve ballistics
+            try:
+                results = solve_ballistics(config)
+                predicted_v = results['muzzle_velocity_fps']
+                measured_v = float(row['mean_velocity_fps'])
+                residual = predicted_v - measured_v
+                residuals.append(residual)
+
+                # Weight by inverse variance if available
+                if 'velocity_sd' in row and pd.notna(row['velocity_sd']) and row['velocity_sd'] > 0:
+                    weight = 1.0 / (row['velocity_sd'] ** 2)
+                else:
+                    weight = 1.0
+                weights.append(weight)
+
+            except Exception:
+                # If solver fails, return large penalty
+                return 1e10
+
+        # Calculate weighted RMSE
+        residuals_np = np.array(residuals)
+        weights_np = np.array(weights)
+        if np.sum(weights_np) > 0:
+            weighted_rmse = np.sqrt(np.sum(weights_np * residuals_np**2) / np.sum(weights_np))
+        else:
+            weighted_rmse = np.sqrt(np.mean(residuals_np**2))
+        return weighted_rmse
+    
     def objective_with_logging(params):
         """Wrapper to add logging to objective function."""
         obj_val = _objective_function(
-            params, load_data, config_base, regularization,
-            fit_temp_sensitivity, fit_bore_friction, fit_start_pressure, fit_covolume
+            params, load_data, config_base, param_names, fit_temp_sensitivity,
+            fit_bore_friction, fit_start_pressure, fit_covolume
         )
         iteration['count'] += 1
         if verbose and iteration['count'] % 10 == 0:
@@ -140,18 +211,23 @@ def fit_vivacity_polynomial(
             # Add physics parameters if being fitted
             idx = 5
             if fit_temp_sensitivity:
-                log_str += f", temp_sens = {params[idx]:.5f}"
+                temp_sens = params[idx]
+                log_str += f", temp_sens = {temp_sens:.6f}"
                 idx += 1
             if fit_bore_friction:
-                log_str += f", bore_fric = {params[idx]:.0f}"
+                bore_fric = params[idx]
+                log_str += f", bore_fric = {bore_fric:.1f}"
                 idx += 1
             if fit_start_pressure:
-                log_str += f", start_p = {params[idx]:.0f}"
+                start_p = params[idx]
+                log_str += f", start_p = {start_p:.0f}"
                 idx += 1
             if fit_covolume:
-                log_str += f", covolume = {params[idx]:.6f}"
+                covolume = params[idx]
+                log_str += f", covolume = {covolume:.6f}"
 
             print(log_str)
+
         return obj_val
 
     # Run optimization
@@ -202,185 +278,7 @@ def fit_vivacity_polynomial(
     # Apply fitted physics parameters to config
     predicted_velocities = []
     residuals = []
-
-    for idx_row, row in load_data.iterrows():
-        config = copy(config_base)
-        config.charge_mass_gr = row['charge_grains']
-
-        # Apply fitted physics parameters
-        if temp_sens_fit is not None:
-            from .props import PropellantProperties
-            prop_updated = PropellantProperties(
-                name=config.propellant.name,
-                vivacity=config.propellant.vivacity,
-                base=config.propellant.base,
-                force=config.propellant.force,
-                temp_0=config.propellant.temp_0,
-                gamma=config.propellant.gamma,
-                bulk_density=config.propellant.bulk_density,
-                Lambda_base=config.propellant.Lambda_base,
-                poly_coeffs=config.propellant.poly_coeffs,
-                covolume_m3_per_kg=covolume_fit if covolume_fit is not None else config.propellant.covolume_m3_per_kg,
-                temp_sensitivity_sigma_per_K=temp_sens_fit
-            )
-            config.propellant = prop_updated
-        elif covolume_fit is not None:
-            from .props import PropellantProperties
-            prop_updated = PropellantProperties(
-                name=config.propellant.name,
-                vivacity=config.propellant.vivacity,
-                base=config.propellant.base,
-                force=config.propellant.force,
-                temp_0=config.propellant.temp_0,
-                gamma=config.propellant.gamma,
-                bulk_density=config.propellant.bulk_density,
-                Lambda_base=config.propellant.Lambda_base,
-                poly_coeffs=config.propellant.poly_coeffs,
-                covolume_m3_per_kg=covolume_fit,
-                temp_sensitivity_sigma_per_K=config.propellant.temp_sensitivity_sigma_per_K
-            )
-            config.propellant = prop_updated
-
-        if bore_fric_fit is not None:
-            config.bore_friction_psi = bore_fric_fit
-        if start_p_fit is not None:
-            config.start_pressure_psi = start_p_fit
-
-        result_sim = solve_ballistics(
-            config,
-            Lambda_override=Lambda_base_fit,
-            coeffs_override=coeffs_fit
-        )
-
-        v_pred = result_sim['muzzle_velocity_fps']
-        v_obs = row['mean_velocity_fps']
-        residual = v_pred - v_obs
-
-        predicted_velocities.append(v_pred)
-        residuals.append(residual)
-
-    predicted_velocities = np.array(predicted_velocities)
-    residuals = np.array(residuals)
-
-    # Compute weighted RMSE
-    if 'velocity_sd' in load_data.columns:
-        weights = 1.0 / (load_data['velocity_sd'].values ** 2)
-        weights = weights / np.sum(weights) * len(weights)  # Normalize
-        rmse = np.sqrt(np.mean(residuals**2 * weights))
-    else:
-        rmse = np.sqrt(np.mean(residuals**2))
-
-    if verbose:
-        print(f"\nFitting complete:")
-        print(f"  Lambda_base = {Lambda_base_fit:.6f}")
-        print(f"  Coefficients: ({a_fit:.3f}, {b_fit:.3f}, {c_fit:.3f}, {d_fit:.3f})")
-        if temp_sens_fit is not None:
-            print(f"  Temperature sensitivity: {temp_sens_fit:.6f} /K")
-        if bore_fric_fit is not None:
-            print(f"  Bore friction: {bore_fric_fit:.1f} psi")
-        if start_p_fit is not None:
-            print(f"  Shot-start pressure: {start_p_fit:.1f} psi")
-        if covolume_fit is not None:
-            print(f"  Covolume: {covolume_fit:.6f} m³/kg")
-        print(f"  RMSE = {rmse:.2f} fps")
-        print(f"  Success: {result.success}")
-        print(f"  Vivacity positive: {is_positive}")
-        if not is_positive:
-            print("  WARNING: Vivacity polynomial has negative values in [0,1]!")
-
-    # Build result dictionary
-    result_dict = {
-        'Lambda_base': Lambda_base_fit,
-        'coeffs': coeffs_fit,
-        'rmse_velocity': rmse,
-        'residuals': residuals.tolist(),
-        'predicted_velocities': predicted_velocities.tolist(),
-        'success': result.success and is_positive,
-        'message': result.message,
-        'iterations': iteration['count']
-    }
-
-    # Add physics parameters if fitted
-    if temp_sens_fit is not None:
-        result_dict['temp_sensitivity_sigma_per_K'] = temp_sens_fit
-    if bore_fric_fit is not None:
-        result_dict['bore_friction_psi'] = bore_fric_fit
-    if start_p_fit is not None:
-        result_dict['start_pressure_psi'] = start_p_fit
-    if covolume_fit is not None:
-        result_dict['covolume_m3_per_kg'] = covolume_fit
-
-    return result_dict
-
-
-def _objective_function(
-    params: np.ndarray,
-    load_data: pd.DataFrame,
-    config_base: BallisticsConfig,
-    regularization: float,
-    fit_temp_sensitivity: bool = False,
-    fit_bore_friction: bool = False,
-    fit_start_pressure: bool = False,
-    fit_covolume: bool = False
-) -> float:
-    """Objective function: weighted velocity RMSE + regularization.
-
-    Parameters
-    ----------
-    params : np.ndarray
-        [Lambda_base, a, b, c, d, temp_sens?, bore_fric?, start_p?, covolume?]
-    load_data : pd.DataFrame
-        Load ladder data with charge_grains, mean_velocity_fps, velocity_sd (optional)
-    config_base : BallisticsConfig
-        Base configuration
-    regularization : float
-        L2 penalty coefficient
-    fit_temp_sensitivity : bool
-        If True, params includes temperature sensitivity
-    fit_bore_friction : bool
-        If True, params includes bore friction
-    fit_start_pressure : bool
-        If True, params includes shot-start pressure
-    fit_covolume : bool
-        If True, params includes covolume
-
-    Returns
-    -------
-    float
-        Objective value (weighted RMSE + penalty)
-    """
-    # Unpack parameters
-    Lambda_base = params[0]
-    a, b, c, d = params[1:5]
-    coeffs = (a, b, c, d)
-
-    # Extract physics parameters if being fitted
-    idx = 5
-    temp_sens = config_base.propellant.temp_sensitivity_sigma_per_K
-    bore_fric = config_base.bore_friction_psi
-    start_p = config_base.start_pressure_psi
-    covolume = config_base.propellant.covolume_m3_per_kg
-
-    if fit_temp_sensitivity:
-        temp_sens = params[idx]
-        idx += 1
-    if fit_bore_friction:
-        bore_fric = params[idx]
-        idx += 1
-    if fit_start_pressure:
-        start_p = params[idx]
-        idx += 1
-    if fit_covolume:
-        covolume = params[idx]
-        idx += 1
-
-    # Check vivacity positivity constraint
-    T_prop_K = config_base.temperature_f * 5/9 + 255.372  # Convert to Kelvin
-    if not validate_vivacity_positive(Lambda_base, coeffs, T_prop_K, temp_sens, n_points=50):
-        return 1e10  # Large penalty for invalid parameters
-
-    residuals = []
-    weights = []
+    weights: list[float] = []
 
     for idx_row, row in load_data.iterrows():
         # Update charge
@@ -432,7 +330,7 @@ def _objective_function(
             residuals.append(residual)
             weights.append(weight)
 
-        except (ValueError, RuntimeError) as e:
+        except (ValueError, RuntimeError):
             # If solver fails, return large penalty
             return 1e10
 
