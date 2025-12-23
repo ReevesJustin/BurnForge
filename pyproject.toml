@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ballistics"
+version = "2.0.0"
+description = "Lumped-parameter internal ballistics solver with dynamic vivacity fitting"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pandas>=2.0",
+    "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+cli = ["typer>=0.9.0"]  # CLI interface (optional for GUI use)
+dev = ["pytest>=7.0", "pytest-cov>=4.0", "black>=23.0", "ruff>=0.1.0"]
+
+[project.scripts]
+ballistics = "cli.main:app"  # Only installed if cli extras installed
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+ballistics = ["*.db"]
