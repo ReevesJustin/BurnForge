@@ -1,0 +1,10 @@
+M_gr=80
+C_gr=24.3
+D=0.224
+V_C=26.68
+barrel_length=20
+case_length=1.755
+powder_type=8208
+bullet_type=Copper Jacket over Lead
+propellant_temp_F=70
+calibrate_mv=2750
