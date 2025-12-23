@@ -77,11 +77,13 @@ PSI_TO_PA = 6894.76  # psi to Pascals
 M3_PER_KG_TO_IN3_PER_LBM = 27679.9  # m³/kg to in³/lbm (1 m³/kg = 27679.9 in³/lbm)
 
 
-def solve_ballistics(config: BallisticsConfig,
-                     Lambda_override: float | None = None,
-                     coeffs_override: tuple[float, float, float, float] | None = None,
-                     method: str = 'DOP853',
-                     return_trace: bool = False) -> dict:
+def solve_ballistics(
+    config: BallisticsConfig,
+    Lambda_override: float | None = None,
+    coeffs_override: tuple[float, float, float, float] | None = None,
+    method: str = "DOP853",
+    return_trace: bool = False,
+) -> dict:
     """Solve internal ballistics using adaptive ODE integration.
 
     Parameters
@@ -112,7 +114,7 @@ def solve_ballistics(config: BallisticsConfig,
     m = config.bullet_mass_gr * GRAINS_TO_LB
     C = config.charge_mass_gr * GRAINS_TO_LB
     D = config.caliber_in
-    A = math.pi * (D / 2)**2
+    A = math.pi * (D / 2) ** 2
     V_C = config.case_volume_gr_h2o * GRAINS_H2O_TO_IN3
     V_0 = V_C - (C / config.propellant.bulk_density)
     L_eff = config.effective_barrel_length_in
@@ -120,16 +122,26 @@ def solve_ballistics(config: BallisticsConfig,
 
     # Validate V_0
     if V_0 <= 0:
-        raise ValueError(f"Initial volume V_0 = {V_0:.3f} in^3 is non-positive. "
-                        f"Check case volume and charge mass.")
+        raise ValueError(
+            f"Initial volume V_0 = {V_0:.3f} in^3 is non-positive. "
+            f"Check case volume and charge mass."
+        )
 
     # Temperature (convert to Kelvin)
     T_1 = (config.temperature_f - 32) * 5 / 9 + 273.15
     T_prop_K = T_1  # Propellant temperature (assume same as ambient for now)
 
     # Propellant properties
-    Lambda_base = Lambda_override if Lambda_override is not None else config.propellant.Lambda_base
-    poly_coeffs = coeffs_override if coeffs_override is not None else config.propellant.poly_coeffs
+    Lambda_base = (
+        Lambda_override
+        if Lambda_override is not None
+        else config.propellant.Lambda_base
+    )
+    poly_coeffs = (
+        coeffs_override
+        if coeffs_override is not None
+        else config.propellant.poly_coeffs
+    )
     gamma = config.propellant.gamma
     F = config.propellant.force
     T_0 = config.propellant.temp_0
@@ -160,7 +172,7 @@ def solve_ballistics(config: BallisticsConfig,
     volume_at_burnout = None
 
     # Pre-compute heat loss model parameters
-    use_convective = (config.heat_loss_model == "convective")
+    use_convective = config.heat_loss_model == "convective"
 
     if use_convective:
         # Convective model parameters
@@ -176,8 +188,9 @@ def solve_ballistics(config: BallisticsConfig,
         h_base_imperial = h_base * JOULES_TO_FT_LBF / (IN_TO_M**2 * 144)
     else:
         # Empirical model
-        E_h_base_empirical = (0.38 * (T_0 - T_1) * D**1.5) / \
-                            (1 + 0.6 * (D**2.175 / C**0.8375)) * 12
+        E_h_base_empirical = (
+            (0.38 * (T_0 - T_1) * D**1.5) / (1 + 0.6 * (D**2.175 / C**0.8375)) * 12
+        )
 
     # Secondary work coefficient
     mu_secondary = config.secondary_work_mu
@@ -224,21 +237,31 @@ def solve_ballistics(config: BallisticsConfig,
         # --- Heat Loss Calculation ---
         if not use_convective:
             # EMPIRICAL MODEL (legacy)
-            E_h = (0.38 * (T_0 - T_1) * D**1.5) / \
-                  (1 + 0.6 * (D**2.175 / C**0.8375)) * 12 * Z
+            E_h = (
+                (0.38 * (T_0 - T_1) * D**1.5)
+                / (1 + 0.6 * (D**2.175 / C**0.8375))
+                * 12
+                * Z
+            )
         else:
             # CONVECTIVE MODEL (modern)
             m_gas = C * Z if Z > 0.001 else C * 0.001
-            P_estimate = max(P_IN, (C * Z * F) / volume) if volume > 0 and Z > 0.001 else P_IN
+            P_estimate = (
+                max(P_IN, (C * Z * F) / volume) if volume > 0 and Z > 0.001 else P_IN
+            )
             R_specific = F / T_0
-            T_gas = (P_estimate * volume / 144) / (m_gas * R_specific) if m_gas > 0 else T_1
+            T_gas = (
+                (P_estimate * volume / 144) / (m_gas * R_specific) if m_gas > 0 else T_1
+            )
             T_gas = max(T_1, min(T_gas, T_0 * 1.5))
             v_gas = max(abs(v), 1.0)
 
-            h_t = h_base_imperial * \
-                  (P_estimate / P_ref)**h_alpha * \
-                  (T_gas / T_ref)**h_beta * \
-                  (v_gas / v_ref)**h_gamma
+            h_t = (
+                h_base_imperial
+                * (P_estimate / P_ref) ** h_alpha
+                * (T_gas / T_ref) ** h_beta
+                * (v_gas / v_ref) ** h_gamma
+            )
 
             delta_T = max(T_gas - T_wall, 0.0)
             bore_surface_area = bore_circumference * x
@@ -288,11 +311,23 @@ def solve_ballistics(config: BallisticsConfig,
             else:
                 # Safety: if covolume exceeds total volume, revert to ideal gas
                 # (should not occur with realistic parameters)
-                P = max(P_IN, (C * Z * F - energy_loss) / volume) if volume > 0 else P_IN
+                P = (
+                    max(P_IN, (C * Z * F - energy_loss) / volume)
+                    if volume > 0
+                    else P_IN
+                )
 
         # --- Burn Rate (Vivacity with Temperature Sensitivity) ---
-        # Apply temperature-dependent burn rate: Λ(Z, T)
-        Lambda_Z = calc_vivacity(Z, Lambda_base, poly_coeffs, T_prop_K, temp_sensitivity)
+        # Apply temperature-dependent burn rate: Λ(Z, T) with geometric form function
+        Lambda_Z = calc_vivacity(
+            Z,
+            Lambda_base,
+            poly_coeffs,
+            T_prop_K,
+            temp_sensitivity,
+            use_form_function=True,
+            geometry=config.propellant.grain_geometry,
+        )
 
         # --- Compute Derivatives ---
         dZ_dt = Lambda_Z * P
@@ -338,7 +373,7 @@ def solve_ballistics(config: BallisticsConfig,
         method=method,
         events=[burnout_event, muzzle_event],
         dense_output=True,
-        max_step=1e-5
+        max_step=1e-5,
     )
 
     if not sol.success:
@@ -356,20 +391,34 @@ def solve_ballistics(config: BallisticsConfig,
 
         # Heat loss calculation (matches ODE system)
         if not use_convective:
-            E_h_val = (0.38 * (T_0 - T_1) * D**1.5) / \
-                      (1 + 0.6 * (D**2.175 / C**0.8375)) * 12 * Z_val
+            E_h_val = (
+                (0.38 * (T_0 - T_1) * D**1.5)
+                / (1 + 0.6 * (D**2.175 / C**0.8375))
+                * 12
+                * Z_val
+            )
         else:
             m_gas_val = C * Z_val if Z_val > 0.001 else C * 0.001
-            P_est = max(P_IN, (C * Z_val * F) / volume_val) if volume_val > 0 and Z_val > 0.001 else P_IN
+            P_est = (
+                max(P_IN, (C * Z_val * F) / volume_val)
+                if volume_val > 0 and Z_val > 0.001
+                else P_IN
+            )
             R_spec = F / T_0
-            T_gas_val = (P_est * volume_val / 144) / (m_gas_val * R_spec) if m_gas_val > 0 else T_1
+            T_gas_val = (
+                (P_est * volume_val / 144) / (m_gas_val * R_spec)
+                if m_gas_val > 0
+                else T_1
+            )
             T_gas_val = max(T_1, min(T_gas_val, T_0 * 1.5))
             v_gas_val = max(abs(v_val), 1.0)
 
-            h_t_val = h_base_imperial * \
-                      (P_est / P_ref)**h_alpha * \
-                      (T_gas_val / T_ref)**h_beta * \
-                      (v_gas_val / v_ref)**h_gamma
+            h_t_val = (
+                h_base_imperial
+                * (P_est / P_ref) ** h_alpha
+                * (T_gas_val / T_ref) ** h_beta
+                * (v_gas_val / v_ref) ** h_gamma
+            )
 
             delta_T_val = max(T_gas_val - T_wall, 0.0)
             bore_surface_val = bore_circumference * x_val
@@ -403,7 +452,11 @@ def solve_ballistics(config: BallisticsConfig,
             if V_free_val > 0:
                 P_val = max(0, (C * Z_val * F - energy_loss_val) / V_free_val)
             else:
-                P_val = max(0, (C * Z_val * F - energy_loss_val) / volume_val) if volume_val > 0 else 0
+                P_val = (
+                    max(0, (C * Z_val * F - energy_loss_val) / volume_val)
+                    if volume_val > 0
+                    else 0
+                )
 
         return P_val
 
@@ -420,7 +473,7 @@ def solve_ballistics(config: BallisticsConfig,
         Z_i_clamped = max(0.0, min(1.0, Z_i))
         if Z_i_clamped >= 0.999 and P_const is None:
             volume_i = V_0 + A * x_i
-            P_const = P_i * (volume_i ** gamma)
+            P_const = P_i * (volume_i**gamma)
             volume_at_burnout = volume_i
 
     # Check for burnout event
@@ -440,36 +493,36 @@ def solve_ballistics(config: BallisticsConfig,
 
     # Build results dictionary
     results = {
-        'muzzle_velocity_fps': muzzle_velocity_fps,
-        'muzzle_energy_ft_lbs': muzzle_energy,
-        'peak_pressure_psi': peak_pressure,
-        'muzzle_pressure_psi': muzzle_pressure,
-        'final_Z': Z_final,
-        'total_time_s': t_final
+        "muzzle_velocity_fps": muzzle_velocity_fps,
+        "muzzle_energy_ft_lbs": muzzle_energy,
+        "peak_pressure_psi": peak_pressure,
+        "muzzle_pressure_psi": muzzle_pressure,
+        "final_Z": Z_final,
+        "total_time_s": t_final,
     }
 
     # Add burnout-specific metrics
     if Z_final >= 0.999:  # Burnout occurred
         if burnout_distance is not None:
-            results['burnout_distance_from_bolt_in'] = COAL + burnout_distance
+            results["burnout_distance_from_bolt_in"] = COAL + burnout_distance
         else:
             # Burnout happened but not detected by event (very close to muzzle)
-            results['burnout_distance_from_bolt_in'] = COAL + x_final
+            results["burnout_distance_from_bolt_in"] = COAL + x_final
     else:  # Still burning at muzzle
-        results['muzzle_burn_percentage'] = Z_final * 100
+        results["muzzle_burn_percentage"] = Z_final * 100
 
     # Add trace if requested
     if return_trace:
-        results['t'] = sol.t
-        results['Z'] = sol.y[0, :]
-        results['v'] = sol.y[1, :]
-        results['x'] = sol.y[2, :]
+        results["t"] = sol.t
+        results["Z"] = sol.y[0, :]
+        results["v"] = sol.y[1, :]
+        results["x"] = sol.y[2, :]
         # Compute pressure trace using helper function (ensures consistency)
         P_trace = []
         for i in range(len(sol.t)):
             Z_i, v_i, x_i = sol.y[:, i]
             P_i = compute_pressure(Z_i, v_i, x_i)
             P_trace.append(P_i)
-        results['P'] = np.array(P_trace)
+        results["P"] = np.array(P_trace)
 
     return results

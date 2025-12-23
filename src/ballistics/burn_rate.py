@@ -28,11 +28,46 @@ import math
 import numpy as np
 
 
-def calc_vivacity(Z: float, Lambda_base: float,
-                   coeffs: tuple[float, float, float, float],
-                   T_prop_K: float = 294.0,
-                   temp_sensitivity_sigma_per_K: float = 0.0,
-                   use_form_function: bool = False) -> float:
+def form_function(Z: float, geometry: str) -> float:
+    """Compute geometric form function π(Z) for different grain types.
+
+    Parameters
+    ----------
+    Z : float
+        Burn fraction (0 ≤ Z ≤ 1)
+    geometry : str
+        Grain geometry type: 'spherical', 'degressive', 'single-perf', 'neutral', '7-perf', 'progressive'
+
+    Returns
+    -------
+    float
+        Form function value π(Z)
+    """
+    if geometry in ("spherical", "degressive"):
+        # Spherical/degressive: π(Z) ≈ (1-Z)^{2/3}
+        return (1 - Z) ** (2 / 3) if Z < 1 else 0.0
+    elif geometry in ("single-perf", "neutral"):
+        # Neutral cylinder: π(Z) = 1 - Z
+        return 1 - Z if Z < 1 else 0.0
+    elif geometry in ("7-perf", "progressive"):
+        # Progressive 7-perf: Standard quadratic 1 + λZ + μZ² (up to slivering point)
+        # Typical values: λ ≈ 1.5, μ ≈ -0.5 for 7-perf, but simplified to 1 + Z for now
+        # For simplicity, use 1 + Z (linear progressive)
+        return 1 + Z if Z < 0.9 else 0.0  # Sliver at Z=0.9
+    else:
+        # Default neutral
+        return 1 - Z if Z < 1 else 0.0
+
+
+def calc_vivacity(
+    Z: float,
+    Lambda_base: float,
+    coeffs: tuple[float, float, float, float],
+    T_prop_K: float = 294.0,
+    temp_sensitivity_sigma_per_K: float = 0.0,
+    use_form_function: bool = False,
+    geometry: str = "spherical",
+) -> float:
     """Compute dynamic vivacity Λ(Z, T) with optional temperature sensitivity and form function.
 
     Parameters
@@ -50,6 +85,8 @@ def calc_vivacity(Z: float, Lambda_base: float,
         Typical range: [0.002, 0.008] /K
     use_form_function : bool, optional
         Use geometric form function instead of pure polynomial. Default: False
+    geometry : str, optional
+        Grain geometry type if use_form_function=True. Default: 'spherical'
 
     Returns
     -------
@@ -84,12 +121,8 @@ def calc_vivacity(Z: float, Lambda_base: float,
     Lambda_temp_corrected = Lambda_base * temp_multiplier
 
     if use_form_function:
-        # Geometric form function: π(Z) = (1-Z)^α * (1 + β*Z + γ*Z^2) * Λ_linear
-        alpha, beta, gamma, lambda_linear = coeffs
-        if Z >= 1.0:
-            pi_z = 0.0
-        else:
-            pi_z = ((1 - Z) ** alpha) * (1 + beta * Z + gamma * Z**2) * lambda_linear
+        # Geometric form function based on grain geometry
+        pi_z = form_function(Z, geometry)
         return Lambda_temp_corrected * pi_z
     else:
         # Original polynomial: Λ(Z, T) = Λ_base(T) × (a + b×Z + c×Z² + d×Z³)
@@ -98,12 +131,14 @@ def calc_vivacity(Z: float, Lambda_base: float,
         return Lambda_temp_corrected * poly_value
 
 
-def validate_vivacity_positive(Lambda_base: float,
-                                 coeffs: tuple[float, float, float, float],
-                                 T_prop_K: float = 294.0,
-                                 temp_sensitivity_sigma_per_K: float = 0.0,
-                                 n_points: int = 100,
-                                 use_form_function: bool = False) -> bool:
+def validate_vivacity_positive(
+    Lambda_base: float,
+    coeffs: tuple[float, float, float, float],
+    T_prop_K: float = 294.0,
+    temp_sensitivity_sigma_per_K: float = 0.0,
+    n_points: int = 100,
+    use_form_function: bool = False,
+) -> bool:
     """Check that Λ(Z, T) > 0 for all Z ∈ [0, 1] at given temperature.
 
     Parameters
@@ -127,7 +162,14 @@ def validate_vivacity_positive(Lambda_base: float,
     Z_values = np.linspace(0, 0.99, n_points)  # Stop just before Z=1
 
     for Z in Z_values:
-        viv = calc_vivacity(Z, Lambda_base, coeffs, T_prop_K, temp_sensitivity_sigma_per_K, use_form_function)
+        viv = calc_vivacity(
+            Z,
+            Lambda_base,
+            coeffs,
+            T_prop_K,
+            temp_sensitivity_sigma_per_K,
+            use_form_function,
+        )
         if viv <= 0:
             return False
 

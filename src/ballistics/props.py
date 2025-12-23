@@ -28,15 +28,19 @@ class PropellantProperties:
         Physical basis: Arrhenius-type activation energy for deflagration.
         Reference: NATO STANAG 4115, Vihtavuori temperature sensitivity data.
     """
+
     name: str
-    vivacity: float              # s⁻¹ per 100 bar
-    base: str                    # 'S' or 'D'
-    force: float                 # ft-lbf/lbm
-    temp_0: float                # K
-    gamma: float                 # Specific heat ratio (computed from base)
-    bulk_density: float          # lbm/in³
-    Lambda_base: float           # Vivacity normalized (vivacity / 1450)
+    vivacity: float  # s⁻¹ per 100 bar
+    base: str  # 'S' or 'D'
+    force: float  # ft-lbf/lbm
+    temp_0: float  # K
+    gamma: float  # Specific heat ratio (computed from base)
+    bulk_density: float  # lbm/in³
+    Lambda_base: float  # Vivacity normalized (vivacity / 1450)
     poly_coeffs: tuple[float, float, float, float]  # (a, b, c, d)
+
+    # Grain geometry for hybrid burn rate model
+    grain_geometry: str = "spherical"  # 'spherical', 'degressive', 'single-perf', 'neutral', '7-perf', 'progressive'
 
     # Noble-Abel EOS covolume (m³/kg)
     covolume_m3_per_kg: float = 0.001
@@ -62,36 +66,43 @@ class PropellantProperties:
             Propellant properties loaded from database
         """
         from . import database
+
         props = database.get_propellant(name, db_path)
 
         # Compute gamma from base
-        gamma = 1.24 if props['base'] == 'S' else 1.22
+        gamma = 1.24 if props["base"] == "S" else 1.22
 
         # Normalize vivacity: Lambda_base for use with PSI
         # If vivacity is in s^-1 per 100 bar, and 100 bar ≈ 1450 PSI,
         # then Lambda_base_PSI = vivacity / 1450 gives s^-1 per PSI
-        Lambda_base = props['vivacity'] / 1450
+        Lambda_base = props["vivacity"] / 1450
 
         # Extract polynomial coefficients
-        poly_coeffs = (props['poly_a'], props['poly_b'],
-                       props['poly_c'], props['poly_d'])
+        poly_coeffs = (
+            props["poly_a"],
+            props["poly_b"],
+            props["poly_c"],
+            props["poly_d"],
+        )
 
         # Extract new physics parameters (with defaults if not in DB)
-        covolume = props.get('covolume_m3_per_kg', 0.001)
-        temp_sensitivity = props.get('temp_sensitivity_sigma_per_K', 0.002)
+        covolume = props.get("covolume_m3_per_kg", 0.001)
+        temp_sensitivity = props.get("temp_sensitivity_sigma_per_K", 0.002)
+        grain_geometry = props.get("grain_geometry", "spherical")
 
         return cls(
             name=name,
-            vivacity=props['vivacity'],
-            base=props['base'],
-            force=props['force'],
-            temp_0=props['temp_0'],
+            vivacity=props["vivacity"],
+            base=props["base"],
+            force=props["force"],
+            temp_0=props["temp_0"],
             gamma=gamma,
-            bulk_density=props['bulk_density'] if props['bulk_density'] else 0.0584,
+            bulk_density=props["bulk_density"] if props["bulk_density"] else 0.0584,
             Lambda_base=Lambda_base,
             poly_coeffs=poly_coeffs,
+            grain_geometry=grain_geometry,
             covolume_m3_per_kg=covolume,
-            temp_sensitivity_sigma_per_K=temp_sensitivity
+            temp_sensitivity_sigma_per_K=temp_sensitivity,
         )
 
 
@@ -118,9 +129,10 @@ class BulletProperties:
 
         Reference: Pressure-travel curves (Powley, NATO EPVAT testing protocols)
     """
+
     name: str
-    s: float                     # Strength factor
-    rho_p: float                 # lbm/in³
+    s: float  # Strength factor
+    rho_p: float  # lbm/in³
     p_initial_psi: float = 3626.0  # Initial chamber pressure (gas generation threshold)
     start_pressure_psi: float = 3626.0  # Shot-start pressure (bullet motion threshold)
 
@@ -141,6 +153,7 @@ class BulletProperties:
             Bullet properties loaded from database
         """
         from . import database
+
         props = database.get_bullet_type(name, db_path)
 
         # Set initial pressure based on bullet type
@@ -149,14 +162,14 @@ class BulletProperties:
         p_initial = 3626.0  # Default for copper jacketed
 
         # Shot-start pressure (default same as p_initial, can be calibrated)
-        start_pressure = props.get('start_pressure_psi', 3626.0)
+        start_pressure = props.get("start_pressure_psi", 3626.0)
 
         return cls(
             name=name,
-            s=props['s'],
-            rho_p=props['rho_p'],
+            s=props["s"],
+            rho_p=props["rho_p"],
             p_initial_psi=p_initial,
-            start_pressure_psi=start_pressure
+            start_pressure_psi=start_pressure,
         )
 
 
@@ -207,6 +220,7 @@ class BallisticsConfig:
         Default: None (inherits from bullet properties).
         Calibratable - optimizer adjusts for real engraving/friction variation.
     """
+
     bullet_mass_gr: float
     charge_mass_gr: float
     caliber_in: float
@@ -216,19 +230,23 @@ class BallisticsConfig:
     propellant: PropellantProperties
     bullet: BulletProperties
     temperature_f: float = 70.0
-    phi: float = 0.9              # Piezometric coefficient
+    phi: float = 0.9  # Piezometric coefficient
     p_initial_psi: float | None = None  # If None, uses bullet.p_initial_psi
 
     # Heat loss model selection and parameters
     heat_loss_model: str = "convective"  # "empirical" or "convective"
-    h_base: float = 2000.0        # Base heat transfer coefficient (W/m²·K), range: 500-5000
-    h_alpha: float = 0.8          # Pressure scaling exponent (literature: 0.7-0.85)
-    h_beta: float = 0.3           # Temperature scaling exponent (literature: 0.25-0.35)
-    h_gamma: float = 0.3          # Velocity scaling exponent (literature: 0.2-0.4)
-    T_wall_K: float = 500.0       # Barrel wall temperature (K), typical: 400-600
-    P_ref_psi: float = 10000.0    # Reference pressure for h(t) scaling (10000 psi = ~690 bar)
-    T_ref_K: float = 2500.0       # Reference temperature for h(t) scaling (K)
-    v_ref_in_s: float = 1200.0    # Reference gas velocity for h(t) scaling (in/s, ~100 m/s)
+    h_base: float = 2000.0  # Base heat transfer coefficient (W/m²·K), range: 500-5000
+    h_alpha: float = 0.8  # Pressure scaling exponent (literature: 0.7-0.85)
+    h_beta: float = 0.3  # Temperature scaling exponent (literature: 0.25-0.35)
+    h_gamma: float = 0.3  # Velocity scaling exponent (literature: 0.2-0.4)
+    T_wall_K: float = 500.0  # Barrel wall temperature (K), typical: 400-600
+    P_ref_psi: float = (
+        10000.0  # Reference pressure for h(t) scaling (10000 psi = ~690 bar)
+    )
+    T_ref_K: float = 2500.0  # Reference temperature for h(t) scaling (K)
+    v_ref_in_s: float = (
+        1200.0  # Reference gas velocity for h(t) scaling (in/s, ~100 m/s)
+    )
 
     # Secondary work coefficient (modern formulation)
     secondary_work_mu: float = 3.0  # Gas entrainment reciprocal, range: [2.2, 3.8]
@@ -251,8 +269,10 @@ class BallisticsConfig:
 
         # Validate heat loss model
         if self.heat_loss_model not in ("empirical", "convective"):
-            raise ValueError(f"heat_loss_model must be 'empirical' or 'convective', "
-                           f"got '{self.heat_loss_model}'")
+            raise ValueError(
+                f"heat_loss_model must be 'empirical' or 'convective', "
+                f"got '{self.heat_loss_model}'"
+            )
 
         # Validate convective model parameters
         if self.heat_loss_model == "convective":
@@ -269,14 +289,20 @@ class BallisticsConfig:
 
         # Validate secondary work coefficient
         if self.secondary_work_mu <= 0:
-            raise ValueError(f"secondary_work_mu must be positive, got {self.secondary_work_mu}")
+            raise ValueError(
+                f"secondary_work_mu must be positive, got {self.secondary_work_mu}"
+            )
 
         # Validate new physics parameters
         if self.bore_friction_psi < 0:
-            raise ValueError(f"bore_friction_psi must be non-negative, got {self.bore_friction_psi}")
+            raise ValueError(
+                f"bore_friction_psi must be non-negative, got {self.bore_friction_psi}"
+            )
 
         if self.start_pressure_psi <= 0:
-            raise ValueError(f"start_pressure_psi must be positive, got {self.start_pressure_psi}")
+            raise ValueError(
+                f"start_pressure_psi must be positive, got {self.start_pressure_psi}"
+            )
 
     @property
     def effective_barrel_length_in(self) -> float:
