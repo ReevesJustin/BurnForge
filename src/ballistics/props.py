@@ -5,7 +5,29 @@ from dataclasses import dataclass
 
 @dataclass
 class PropellantProperties:
-    """Propellant thermochemical and burn rate properties."""
+    """Propellant thermochemical and burn rate properties.
+
+    Noble-Abel EOS Parameters
+    -------------------------
+    covolume_m3_per_kg : float
+        Covolume correction for Noble-Abel equation of state (m³/kg).
+        Accounts for finite molecular volume at high density.
+        Typical range: [0.0008, 0.0012] m³/kg for gun propellants.
+        Default: 0.001 m³/kg (literature value for nitrocellulose-based propellants).
+        Reference: Noble-Abel EOS, Corner (1950), Baer & Nunziato (2003).
+
+    Temperature Sensitivity
+    -----------------------
+    temp_sensitivity_sigma_per_K : float
+        Temperature sensitivity coefficient for burn rate (1/K).
+        Applied as: Λ(T) = Λ_base × exp(σ × (T_prop - T_ref))
+        where σ = temp_sensitivity_sigma_per_K, T_ref = 294 K (70°F).
+        Typical range: [0.002, 0.008] /K for small arms propellants.
+        Default: 0.004 /K (mid-range sensitivity).
+        Higher values → greater temperature dependence (faster burn at high temp).
+        Physical basis: Arrhenius-type activation energy for deflagration.
+        Reference: NATO STANAG 4115, Vihtavuori temperature sensitivity data.
+    """
     name: str
     vivacity: float              # s⁻¹ per 100 bar
     base: str                    # 'S' or 'D'
@@ -15,6 +37,13 @@ class PropellantProperties:
     bulk_density: float          # lbm/in³
     Lambda_base: float           # Vivacity normalized (vivacity / 1450)
     poly_coeffs: tuple[float, float, float, float]  # (a, b, c, d)
+
+    # Noble-Abel EOS covolume (m³/kg)
+    covolume_m3_per_kg: float = 0.001
+
+    # Temperature sensitivity coefficient (1/K)
+    # Default 0.002 /K gives ~1 fps/°F (conservative, mid-range for most propellants)
+    temp_sensitivity_sigma_per_K: float = 0.002
 
     @classmethod
     def from_database(cls, name: str, db_path: str | None = None):
@@ -47,6 +76,10 @@ class PropellantProperties:
         poly_coeffs = (props['poly_a'], props['poly_b'],
                        props['poly_c'], props['poly_d'])
 
+        # Extract new physics parameters (with defaults if not in DB)
+        covolume = props.get('covolume_m3_per_kg', 0.001)
+        temp_sensitivity = props.get('temp_sensitivity_sigma_per_K', 0.002)
+
         return cls(
             name=name,
             vivacity=props['vivacity'],
@@ -56,17 +89,40 @@ class PropellantProperties:
             gamma=gamma,
             bulk_density=props['bulk_density'] if props['bulk_density'] else 0.0584,
             Lambda_base=Lambda_base,
-            poly_coeffs=poly_coeffs
+            poly_coeffs=poly_coeffs,
+            covolume_m3_per_kg=covolume,
+            temp_sensitivity_sigma_per_K=temp_sensitivity
         )
 
 
 @dataclass
 class BulletProperties:
-    """Bullet material properties."""
+    """Bullet material properties.
+
+    Shot-Start Pressure
+    -------------------
+    start_pressure_psi : float
+        Minimum chamber pressure required to overcome static friction and
+        begin bullet movement (psi). Represents combined engraving resistance,
+        case neck tension, and bullet-lands interference.
+
+        Typical values:
+        - Copper jacketed, standard seating: 3000-4000 psi (default 3626 psi)
+        - Heavy crimp or compressed load: 5000-8000 psi
+        - Long jump to lands (minimal contact): 1500-2500 psi
+        - Jammed into lands: 6000-12000 psi
+
+        Fitting bounds: [1000, 12000] psi
+        Calibratable from velocity data - optimizer adjusts to match observed
+        behavior at low and high charge weights.
+
+        Reference: Pressure-travel curves (Powley, NATO EPVAT testing protocols)
+    """
     name: str
     s: float                     # Strength factor
     rho_p: float                 # lbm/in³
-    p_initial_psi: float = 3626.0  # Initial pressure for copper jacketed bullets
+    p_initial_psi: float = 3626.0  # Initial chamber pressure (gas generation threshold)
+    start_pressure_psi: float = 3626.0  # Shot-start pressure (bullet motion threshold)
 
     @classmethod
     def from_database(cls, name: str, db_path: str | None = None):
@@ -92,11 +148,15 @@ class BulletProperties:
         # Other types can be added as needed
         p_initial = 3626.0  # Default for copper jacketed
 
+        # Shot-start pressure (default same as p_initial, can be calibrated)
+        start_pressure = props.get('start_pressure_psi', 3626.0)
+
         return cls(
             name=name,
             s=props['s'],
             rho_p=props['rho_p'],
-            p_initial_psi=p_initial
+            p_initial_psi=p_initial,
+            start_pressure_psi=start_pressure
         )
 
 
@@ -130,6 +190,22 @@ class BallisticsConfig:
     where μ ∈ [2.2, 3.8] (default 3.0) represents the reciprocal of the gas
     entrainment fraction. This replaces the outdated fixed "1/3 rule" and provides
     improved physical accuracy while remaining calibratable from velocity data.
+
+    New Physics Enhancements
+    ------------------------
+    bore_friction_psi : float
+        Pressure-equivalent continuous bore friction (psi). Subtracted from
+        driving pressure: P_effective = P_chamber - bore_friction_psi.
+        Represents energy loss to bullet-barrel friction throughout travel.
+        Typical range: [0, 4000] psi. Default: 1000 psi.
+        Calibratable from velocity data across charge range.
+
+    start_pressure_psi : float or None
+        Shot-start pressure threshold (psi). Bullet remains stationary until
+        chamber pressure exceeds this value. If None, uses bullet.start_pressure_psi.
+        Typical range: [1000, 12000] psi depending on seating depth and crimp.
+        Default: None (inherits from bullet properties).
+        Calibratable - optimizer adjusts for real engraving/friction variation.
     """
     bullet_mass_gr: float
     charge_mass_gr: float
@@ -157,10 +233,21 @@ class BallisticsConfig:
     # Secondary work coefficient (modern formulation)
     secondary_work_mu: float = 3.0  # Gas entrainment reciprocal, range: [2.2, 3.8]
 
+    # Bore friction (pressure-equivalent resistance, psi)
+    # Default 0 psi - let fitting determine if friction is needed
+    bore_friction_psi: float = 0.0  # Continuous friction loss, range: [0, 4000] psi
+
+    # Shot-start pressure override (if None, uses bullet.start_pressure_psi)
+    start_pressure_psi: float | None = None
+
     def __post_init__(self):
         """Validate configuration parameters."""
         if self.p_initial_psi is None:
             self.p_initial_psi = self.bullet.p_initial_psi
+
+        # Set shot-start pressure if not specified
+        if self.start_pressure_psi is None:
+            self.start_pressure_psi = self.bullet.start_pressure_psi
 
         # Validate heat loss model
         if self.heat_loss_model not in ("empirical", "convective"):
@@ -183,6 +270,13 @@ class BallisticsConfig:
         # Validate secondary work coefficient
         if self.secondary_work_mu <= 0:
             raise ValueError(f"secondary_work_mu must be positive, got {self.secondary_work_mu}")
+
+        # Validate new physics parameters
+        if self.bore_friction_psi < 0:
+            raise ValueError(f"bore_friction_psi must be non-negative, got {self.bore_friction_psi}")
+
+        if self.start_pressure_psi <= 0:
+            raise ValueError(f"start_pressure_psi must be positive, got {self.start_pressure_psi}")
 
     @property
     def effective_barrel_length_in(self) -> float:

@@ -44,7 +44,8 @@ def get_propellant(name: str, db_path: str | None = None) -> dict:
 
     cursor.execute("""
         SELECT vivacity, base, force, temp_0, temp_coeff_v, temp_coeff_p, bulk_density,
-               poly_a, poly_b, poly_c, poly_d
+               poly_a, poly_b, poly_c, poly_d,
+               covolume_m3_per_kg, temp_sensitivity_sigma_per_K
         FROM propellants WHERE name = ?
     """, (name,))
 
@@ -66,7 +67,9 @@ def get_propellant(name: str, db_path: str | None = None) -> dict:
         'poly_a': row[7],
         'poly_b': row[8],
         'poly_c': row[9],
-        'poly_d': row[10]
+        'poly_d': row[10],
+        'covolume_m3_per_kg': row[11] if len(row) > 11 and row[11] is not None else 0.001,
+        'temp_sensitivity_sigma_per_K': row[12] if len(row) > 12 and row[12] is not None else 0.002
     }
 
 
@@ -97,7 +100,7 @@ def get_bullet_type(name: str, db_path: str | None = None) -> dict:
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT s, rho_p
+        SELECT s, rho_p, start_pressure_psi
         FROM bullet_types WHERE name = ?
     """, (name,))
 
@@ -109,7 +112,8 @@ def get_bullet_type(name: str, db_path: str | None = None) -> dict:
 
     return {
         's': row[0],
-        'rho_p': row[1]
+        'rho_p': row[1],
+        'start_pressure_psi': row[2] if len(row) > 2 and row[2] is not None else 3626.0
     }
 
 
