@@ -42,6 +42,9 @@ class PropellantProperties:
     # Grain geometry for hybrid burn rate model
     grain_geometry: str = "spherical"  # 'spherical', 'degressive', 'single-perf', 'neutral', '7-perf', 'progressive'
 
+    # Pressure-dependent burn rate correction (s⁻¹/psi²)
+    alpha: float = 0.0  # Linear pressure correction coefficient, range [0, 0.001]
+
     # Noble-Abel EOS covolume (m³/kg)
     covolume_m3_per_kg: float = 0.001
 
@@ -89,6 +92,7 @@ class PropellantProperties:
         covolume = props.get("covolume_m3_per_kg", 0.001)
         temp_sensitivity = props.get("temp_sensitivity_sigma_per_K", 0.002)
         grain_geometry = props.get("grain_geometry", "spherical")
+        alpha = props.get("alpha", 0.0)
 
         return cls(
             name=name,
@@ -101,6 +105,7 @@ class PropellantProperties:
             Lambda_base=Lambda_base,
             poly_coeffs=poly_coeffs,
             grain_geometry=grain_geometry,
+            alpha=alpha,
             covolume_m3_per_kg=covolume,
             temp_sensitivity_sigma_per_K=temp_sensitivity,
         )

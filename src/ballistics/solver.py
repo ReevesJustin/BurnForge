@@ -327,6 +327,8 @@ def solve_ballistics(
             temp_sensitivity,
             use_form_function=True,
             geometry=config.propellant.grain_geometry,
+            p_psi=P,
+            alpha=config.propellant.alpha,
         )
 
         # --- Compute Derivatives ---

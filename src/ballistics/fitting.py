@@ -78,16 +78,22 @@ def fit_vivacity_polynomial(
         )
 
     # Build parameter names list (for tracking what we're fitting)
-    param_names = ["Lambda_base", "a", "b", "c", "d"]
+    if use_form_function:
+        param_names = ["Lambda_base", "alpha"]
+    else:
+        param_names = ["Lambda_base", "a", "b", "c", "d"]
 
     # Set default initial guess
     if initial_guess is None:
         Lambda_base_init = config_base.propellant.Lambda_base
-        a_init, b_init, c_init, d_init = config_base.propellant.poly_coeffs
-        # Use database values if they're reasonable, else use defaults
-        if a_init == 0 and b_init == 0 and c_init == 0 and d_init == 0:
-            a_init, b_init, c_init, d_init = 1.0, -1.0, 0.0, 0.0
-        initial_guess = [Lambda_base_init, a_init, b_init, c_init, d_init]
+        if use_form_function:
+            initial_guess = [Lambda_base_init, config_base.propellant.alpha]
+        else:
+            a_init, b_init, c_init, d_init = config_base.propellant.poly_coeffs
+            # Use database values if they're reasonable, else use defaults
+            if a_init == 0 and b_init == 0 and c_init == 0 and d_init == 0:
+                a_init, b_init, c_init, d_init = 1.0, -1.0, 0.0, 0.0
+            initial_guess = [Lambda_base_init, a_init, b_init, c_init, d_init]
 
         # Add physics parameters if requested
         if fit_temp_sensitivity:
@@ -107,8 +113,12 @@ def fit_vivacity_polynomial(
 
     # Set default bounds for base parameters
     if bounds is None:
-        bounds_lower = [0.01, -2.0, -2.0, -2.0, -2.0]
-        bounds_upper = [0.15, 2.0, 2.0, 2.0, 2.0]
+        if use_form_function:
+            bounds_lower = [0.01, 0.0]
+            bounds_upper = [0.15, 0.001]
+        else:
+            bounds_lower = [0.01, -2.0, -2.0, -2.0, -2.0]
+            bounds_upper = [0.15, 2.0, 2.0, 2.0, 2.0]
 
         # Add physics parameter bounds if requested
         if fit_temp_sensitivity:
@@ -146,11 +156,13 @@ def fit_vivacity_polynomial(
         # Unpack parameters
         Lambda_base = params[0]
         if use_form_function:
+            alpha = params[1]
             coeffs = (1, 0, 0, 0)
             idx = 1
         else:
             a, b, c, d = params[1:5]
             coeffs = (a, b, c, d)
+            alpha = 0.0
             idx = 5
         temp_sens = (
             params[idx]
@@ -175,6 +187,8 @@ def fit_vivacity_polynomial(
             temp_sens,
             n_points=50,
             use_form_function=use_form_function,
+            geometry=config_base.propellant.grain_geometry,
+            alpha=alpha if use_form_function else 0.0,
         ):
             return 1e10  # Large penalty for invalid parameters
 
@@ -190,6 +204,8 @@ def fit_vivacity_polynomial(
             config.propellant = copy(config.propellant)
             config.propellant.Lambda_base = Lambda_base
             config.propellant.poly_coeffs = coeffs
+            if use_form_function:
+                config.propellant.alpha = alpha
             config.use_form_function = use_form_function
             if fit_temp_sensitivity:
                 config.propellant.temp_sensitivity_sigma_per_K = temp_sens
@@ -413,6 +429,9 @@ def fit_vivacity_polynomial(
     }
 
     # Add physics parameters if fitted
+    alpha_fit = opt_result.x[1] if use_form_function else None
+    if alpha_fit is not None:
+        result_dict["alpha"] = alpha_fit
     if temp_sens_fit is not None:
         result_dict["temp_sensitivity_sigma_per_K"] = temp_sens_fit
     if bore_fric_fit is not None:

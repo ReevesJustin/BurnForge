@@ -67,6 +67,8 @@ def calc_vivacity(
     temp_sensitivity_sigma_per_K: float = 0.0,
     use_form_function: bool = False,
     geometry: str = "spherical",
+    p_psi: float | None = None,
+    alpha: float = 0.0,
 ) -> float:
     """Compute dynamic vivacity Λ(Z, T) with optional temperature sensitivity and form function.
 
@@ -87,6 +89,10 @@ def calc_vivacity(
         Use geometric form function instead of pure polynomial. Default: False
     geometry : str, optional
         Grain geometry type if use_form_function=True. Default: 'spherical'
+    p_psi : float, optional
+        Current chamber pressure (psi) for pressure-dependent correction. Default: None
+    alpha : float, optional
+        Pressure-dependent correction coefficient (s⁻¹/psi²). Default: 0.0
 
     Returns
     -------
@@ -99,8 +105,8 @@ def calc_vivacity(
         Λ(T) = Λ_base × exp(σ × (T - T_ref))
     where T_ref = 294 K (70°F).
 
-    Form function mode: Uses π(Z) = (1-Z)^α * (1 + β*Z + γ*Z^2) * Λ_linear
-    Default neutral grain: α=0, β=0, γ=0 (π(Z)=1)
+    Form function mode: Λ(Z, p) = (Λ_base(T) + α × p) × π(Z)
+    where π(Z) is the geometric form function based on grain geometry.
     """
     # Clamp Z to [0, 1]
     Z = max(0.0, min(1.0, Z))
@@ -121,9 +127,13 @@ def calc_vivacity(
     Lambda_temp_corrected = Lambda_base * temp_multiplier
 
     if use_form_function:
-        # Geometric form function based on grain geometry
+        # Geometric form function with pressure-dependent correction
         pi_z = form_function(Z, geometry)
-        return Lambda_temp_corrected * pi_z
+        if p_psi is not None and alpha > 0:
+            Lambda_pressure_corrected = Lambda_temp_corrected + alpha * p_psi
+        else:
+            Lambda_pressure_corrected = Lambda_temp_corrected
+        return Lambda_pressure_corrected * pi_z
     else:
         # Original polynomial: Λ(Z, T) = Λ_base(T) × (a + b×Z + c×Z² + d×Z³)
         a, b, c, d = coeffs
@@ -138,6 +148,8 @@ def validate_vivacity_positive(
     temp_sensitivity_sigma_per_K: float = 0.0,
     n_points: int = 100,
     use_form_function: bool = False,
+    geometry: str = "spherical",
+    alpha: float = 0.0,
 ) -> bool:
     """Check that Λ(Z, T) > 0 for all Z ∈ [0, 1] at given temperature.
 
@@ -169,6 +181,9 @@ def validate_vivacity_positive(
             T_prop_K,
             temp_sensitivity_sigma_per_K,
             use_form_function,
+            geometry,
+            None,
+            alpha,
         )
         if viv <= 0:
             return False
