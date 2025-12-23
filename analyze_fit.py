@@ -35,13 +35,33 @@ print()
 # Create config
 config = metadata_to_config(metadata)
 
+# Increase heat loss to address under-prediction
+config.h_base = 5000.0
+
 print("=" * 60)
-print("Fitting Vivacity Polynomial")
+print("Fitting Vivacity Polynomial (h_base=3000, with bore friction)")
 print("=" * 60)
 
 # Fit with verbose output, using hybrid geometric + pressure-dependent + temperature-sensitive model
+# Force initial alpha positive to enable pressure correction
+initial_guess = [
+    0.040828,
+    0.01,
+    0.002,
+    0.01,
+    4000.0,
+    0.001,
+]  # Lambda_base, alpha, sigma, bore_fric, h_base, covolume
 fit_result = fit_vivacity_polynomial(
-    load_data, config, verbose=False, use_form_function=True, fit_temp_sensitivity=True
+    load_data,
+    config,
+    initial_guess=initial_guess,
+    verbose=False,
+    use_form_function=True,
+    fit_temp_sensitivity=True,
+    fit_bore_friction=True,
+    fit_h_base=True,
+    fit_covolume=True,
 )
 
 print()
@@ -193,4 +213,37 @@ if abs(second_half_mean - first_half_mean) > 5:
     print(f"  Lower charges: {first_half_mean:+.2f} fps average residual")
     print(f"  Higher charges: {second_half_mean:+.2f} fps average residual")
     print(f"  Suggests model may need additional terms or physics")
+
+print("\n" + "=" * 60)
+print("Burnout Position Diagnostics")
+print("=" * 60)
+print("Charge   Burnout Distance (in)   Final Burn %")
+print("---------------------------------------------")
+for idx, row in load_data.iterrows():
+    config_sim = metadata_to_config(metadata)
+    config_sim.charge_mass_gr = float(row["charge_grains"])
+    # Apply fitted parameters
+    config_sim.propellant.Lambda_base = fit_result["Lambda_base"]
+    if "alpha" in fit_result:
+        config_sim.propellant.alpha = fit_result["alpha"]
+    config_sim.propellant.poly_coeffs = fit_result["coeffs"]
+    if "temp_sensitivity_sigma_per_K" in fit_result:
+        config_sim.propellant.temp_sensitivity_sigma_per_K = fit_result[
+            "temp_sensitivity_sigma_per_K"
+        ]
+    if "bore_friction_psi" in fit_result:
+        config_sim.bore_friction_psi = fit_result["bore_friction_psi"]
+    if "h_base" in fit_result:
+        config_sim.h_base = fit_result["h_base"]
+    if "covolume_m3_per_kg" in fit_result:
+        config_sim.propellant.covolume_m3_per_kg = fit_result["covolume_m3_per_kg"]
+
+    try:
+        results = solve_ballistics(config_sim)
+        burnout_dist = results["burnout_distance_in"]
+        final_burn = results["final_burn_percent"]
+        print(f"{row['charge_grains']:6.1f} {burnout_dist:12.2f} {final_burn:12.1f}")
+    except:
+        print(f"{row['charge_grains']:6.1f} {'N/A':>12} {'N/A':>12}")
+
 print("\n" + "=" * 60)

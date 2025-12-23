@@ -26,6 +26,7 @@ def fit_vivacity_polynomial(
     fit_bore_friction: bool = False,
     fit_start_pressure: bool = False,
     fit_covolume: bool = False,
+    fit_h_base: bool = False,
     use_form_function: bool = False,
 ) -> dict:
     """Fit vivacity polynomial and optional physics parameters from load ladder data.
@@ -108,6 +109,9 @@ def fit_vivacity_polynomial(
         if fit_covolume:
             initial_guess.append(config_base.propellant.covolume_m3_per_kg)
             param_names.append("covolume")
+        if fit_h_base:
+            initial_guess.append(config_base.h_base)  # type: ignore
+            param_names.append("h_base")
 
         initial_guess = tuple(initial_guess)
 
@@ -115,7 +119,7 @@ def fit_vivacity_polynomial(
     if bounds is None:
         if use_form_function:
             bounds_lower = [0.01, 0.0]
-            bounds_upper = [0.15, 0.1]
+            bounds_upper = [0.15, 0.5]
         else:
             bounds_lower = [0.01, -2.0, -2.0, -2.0, -2.0]
             bounds_upper = [0.15, 2.0, 2.0, 2.0, 2.0]
@@ -133,6 +137,9 @@ def fit_vivacity_polynomial(
         if fit_covolume:
             bounds_lower.append(0.0008)  # covolume ∈ [0.0008, 0.0012] m³/kg
             bounds_upper.append(0.0012)
+        if fit_h_base:
+            bounds_lower.append(500.0)  # h_base ∈ [500, 10000] W/m²·K
+            bounds_upper.append(10000.0)
 
         bounds = (tuple(bounds_lower), tuple(bounds_upper))
 
@@ -148,6 +155,7 @@ def fit_vivacity_polynomial(
         fit_bore_friction,
         fit_start_pressure,
         fit_covolume,
+        fit_h_base,
         use_form_function,
         geometry,
     ):
@@ -177,6 +185,8 @@ def fit_vivacity_polynomial(
         covolume = (
             params[idx] if fit_covolume else config_base.propellant.covolume_m3_per_kg
         )
+        idx += 1 if fit_covolume else 0
+        h_base_fit = params[idx] if fit_h_base else config_base.h_base
 
         # Check vivacity positivity constraint
         T_prop_K = config_base.temperature_f * 5 / 9 + 255.372  # Convert to Kelvin
@@ -198,7 +208,7 @@ def fit_vivacity_polynomial(
         for idx_row, row in load_data.iterrows():
             # Update charge
             config = copy(config_base)
-            config.charge_mass_gr = float(row["charge_grains"])
+            config.charge_mass_gr = float(row["charge_grains"])  # type: ignore
 
             # Apply physics parameters
             config.propellant = copy(config.propellant)
@@ -261,6 +271,7 @@ def fit_vivacity_polynomial(
             fit_bore_friction,
             fit_start_pressure,
             fit_covolume,
+            fit_h_base,
             use_form_function,
             config_base.propellant.grain_geometry,
         )
@@ -321,6 +332,7 @@ def fit_vivacity_polynomial(
     bore_fric_fit = None
     start_p_fit = None
     covolume_fit = None
+    h_base_fit = None
 
     if fit_temp_sensitivity:
         temp_sens_fit = opt_result.x[idx]
@@ -333,6 +345,9 @@ def fit_vivacity_polynomial(
         idx += 1
     if fit_covolume:
         covolume_fit = opt_result.x[idx]
+        idx += 1
+    if fit_h_base:
+        h_base_fit = opt_result.x[idx]
         idx += 1
 
     # Validate vivacity positivity
@@ -371,6 +386,7 @@ def fit_vivacity_polynomial(
         bore_fric_fit if bore_fric_fit is not None else config_base.bore_friction_psi
     )
     start_p = start_p_fit if start_p_fit is not None else config_base.start_pressure_psi
+    h_base = h_base_fit if h_base_fit is not None else config_base.h_base
 
     for idx_row, row in load_data.iterrows():
         # Update charge
@@ -400,6 +416,10 @@ def fit_vivacity_polynomial(
             config.bore_friction_psi = bore_fric
         if fit_start_pressure:
             config.start_pressure_psi = start_p
+        if fit_h_base:
+            config.h_base = h_base_fit
+        if fit_h_base:
+            config.h_base = h_base
 
         try:
             # Solve with overrides
@@ -457,6 +477,8 @@ def fit_vivacity_polynomial(
         result_dict["temp_sensitivity_sigma_per_K"] = temp_sens_fit
     if bore_fric_fit is not None:
         result_dict["bore_friction_psi"] = bore_fric_fit
+    if h_base_fit is not None:
+        result_dict["h_base"] = h_base_fit
     if start_p_fit is not None:
         result_dict["start_pressure_psi"] = start_p_fit
     if covolume_fit is not None:

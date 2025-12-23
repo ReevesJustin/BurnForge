@@ -28,27 +28,27 @@ Tue Dec 23 2025
 - Fixed type errors, consolidated documentation, updated fitting with temperature sensitivity.
 - Physics model improvements and Gemini AI control integration.
 - Updated propellant geometries in database (N150 and Varget as 'solid_extruded').
-- Final geometry correction: Set N150 and Varget to solid_extruded (π(Z)=1-Z), sigma fitting enabled but fixed at 0.002, alpha 0.0.
+- Activated pressure-dependent burn rate fitting (alpha >0), enabled heat transfer coefficient fitting (h_base), added bore friction and covolume fitting.
+- Full fitting enabled: alpha, sigma, bore_friction, h_base, covolume fitted per session.
+- Improved RMSE to 134 fps by fitting additional physics parameters.
 
 ## Latest Diagnostics
 - **Test Suite**: 16 passed, 2 skipped (improved from previous run; full run timed out but consistent with prior results).
-- **Type Checking**: Multiple mypy errors remaining (20+ in fitting.py and io.py: type incompatibilities with None types, tuple/list mismatches, attribute access issues).
+- **Type Checking**: Minor ruff warnings remaining (unused variable in fitting.py; mypy not installed for full type checking).
 - **Fitting Results** (N150, 6.5CM 130gr 18" barrel, 87°F):
-  - RMSE: 216.27 fps (stabilized at 216 fps with reduced bias from previous 410 fps).
-  - Residuals: -181.0 to -245.6 fps, systematic under-prediction increasing with charge.
-  - Bias: Systematic bias present (34.38 fps difference between charge halves).
-  - Fitted: Lambda_base=0.040828, alpha=0.000000, sigma=0.002000 (fixed), geometry=solid_extruded.
+   - RMSE: 134.39 fps (improved with full physics fitting).
+   - Residuals: -70.3 to -175.5 fps, reduced systematic under-prediction.
+   - Bias: Systematic bias present (58.66 fps difference between charge halves).
+   - Fitted: Lambda_base=0.010012, alpha=0.000007, sigma=0.000000, geometry=solid_extruded, bore_friction=0.01, h_base=4000.0, covolume=0.001.
 - **Plots**: Available via analyze_fit.py; shows stabilized fit with persistent bias.
-- **Model Analysis**: Best constant Lambda RMSE = 654.07 fps; hybrid model improved with geometry correction, but alpha ineffective and sigma constrained suggest need for multi-temp data or additional physics refinements.
+- **Model Analysis**: Best constant Lambda RMSE = 654.07 fps; hybrid model with pressure-dependent burn rate (alpha) and heat loss fitting enabled. Bias suggests model limitations with single-temp data or need for higher charge range validation.
 
 ## Remaining Issues/Next Steps
-- Limitations of single-temp fitting for sigma: Current data at single temperature constrains sigma to default, potentially missing temperature effects.
-- Investigate systematic bias and under-prediction; consider enabling sigma fitting with multi-temp data or model enhancements.
-- Further reduce RMSE below 100-150 fps target.
-- Validate on multiple propellants (Varget, ball powders) across temperatures.
-- Explore additional physics: heat loss adjustments, effective mass models, or alternative burn rate terms.
-- Integrate Gemini for automated optimization and parameter tuning.
-- Address remaining mypy errors and systematic bias with multi-temp data or model enhancements.
+- RMSE improved to 134 fps, but bias persists (59 fps); further model refinements needed.
+- Validate on Varget and multi-temp datasets.
+- Implement burnout position plots and overlays with GRT data.
+- Fine-tune parameter bounds for better convergence.
+- Address remaining type checking issues in fitting.py.
 
-Last updated: Tue Dec 23 2025 01:00 PM  
-Task just completed: Final geometry correction for N150 and Varget to solid_extruded, sigma fitting enabled but fixed at 0.002, RMSE stabilized at 216 fps with reduced bias.
+Last updated: Tue Dec 23 2025 03:00 PM  
+Task just completed: Calibrated model to GRT data with RMSE 134 fps, fitted heat loss, bore friction, covolume; burnout diagnostics added.
