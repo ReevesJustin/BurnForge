@@ -25,7 +25,8 @@ def fit_vivacity_polynomial(
     fit_temp_sensitivity: bool = False,
     fit_bore_friction: bool = False,
     fit_start_pressure: bool = False,
-    fit_covolume: bool = False
+    fit_covolume: bool = False,
+    use_form_function: bool = False
 ) -> dict:
     """Fit vivacity polynomial and optional physics parameters from load ladder data.
 
@@ -146,7 +147,7 @@ def fit_vivacity_polynomial(
 
         # Check vivacity positivity constraint
         T_prop_K = config_base.temperature_f * 5/9 + 255.372  # Convert to Kelvin
-        if not validate_vivacity_positive(Lambda_base, coeffs, T_prop_K, temp_sens, n_points=50):
+        if not validate_vivacity_positive(Lambda_base, coeffs, T_prop_K, temp_sens, n_points=50, use_form_function=use_form_function):
             return 1e10  # Large penalty for invalid parameters
 
         residuals = []
@@ -161,6 +162,7 @@ def fit_vivacity_polynomial(
             config.propellant = copy(config.propellant)
             config.propellant.Lambda_base = Lambda_base
             config.propellant.poly_coeffs = coeffs
+            config.use_form_function = use_form_function
             if fit_temp_sensitivity:
                 config.propellant.temp_sensitivity_sigma_per_K = temp_sens
             if fit_covolume:

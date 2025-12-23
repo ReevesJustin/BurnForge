@@ -29,10 +29,11 @@ import numpy as np
 
 
 def calc_vivacity(Z: float, Lambda_base: float,
-                  coeffs: tuple[float, float, float, float],
-                  T_prop_K: float = 294.0,
-                  temp_sensitivity_sigma_per_K: float = 0.0) -> float:
-    """Compute dynamic vivacity Λ(Z, T) with optional temperature sensitivity.
+                   coeffs: tuple[float, float, float, float],
+                   T_prop_K: float = 294.0,
+                   temp_sensitivity_sigma_per_K: float = 0.0,
+                   use_form_function: bool = False) -> float:
+    """Compute dynamic vivacity Λ(Z, T) with optional temperature sensitivity and form function.
 
     Parameters
     ----------
@@ -41,12 +42,14 @@ def calc_vivacity(Z: float, Lambda_base: float,
     Lambda_base : float
         Base vivacity at reference temperature (s⁻¹ per PSI)
     coeffs : tuple
-        (a, b, c, d) polynomial coefficients
+        (a, b, c, d) polynomial coefficients for Λ(p) or (α, β, γ, Λ_linear) for form function
     T_prop_K : float, optional
         Propellant temperature (K). Default: 294 K (70°F)
     temp_sensitivity_sigma_per_K : float, optional
-        Temperature sensitivity coefficient (1/K). Default: 0.0 (no sensitivity)
+        Temperature sensitivity coefficient (1/K). Default: 0.0
         Typical range: [0.002, 0.008] /K
+    use_form_function : bool, optional
+        Use geometric form function instead of pure polynomial. Default: False
 
     Returns
     -------
@@ -59,10 +62,8 @@ def calc_vivacity(Z: float, Lambda_base: float,
         Λ(T) = Λ_base × exp(σ × (T - T_ref))
     where T_ref = 294 K (70°F).
 
-    This formulation naturally produces nonlinear velocity-temperature response:
-    - Early burnout (high charge) → reduced temperature sensitivity
-    - Late burnout (low charge) → increased temperature sensitivity
-    matching real-world chronograph data patterns.
+    Form function mode: Uses π(Z) = (1-Z)^α * (1 + β*Z + γ*Z^2) * Λ_linear
+    Default neutral grain: α=0, β=0, γ=0 (π(Z)=1)
     """
     # Clamp Z to [0, 1]
     Z = max(0.0, min(1.0, Z))
@@ -82,19 +83,27 @@ def calc_vivacity(Z: float, Lambda_base: float,
     # Apply temperature correction to base vivacity
     Lambda_temp_corrected = Lambda_base * temp_multiplier
 
-    a, b, c, d = coeffs
-
-    # Evaluate polynomial: Λ(Z, T) = Λ_base(T) × (a + b×Z + c×Z² + d×Z³)
-    poly_value = a + b * Z + c * Z**2 + d * Z**3
-
-    return Lambda_temp_corrected * poly_value
+    if use_form_function:
+        # Geometric form function: π(Z) = (1-Z)^α * (1 + β*Z + γ*Z^2) * Λ_linear
+        alpha, beta, gamma, lambda_linear = coeffs
+        if Z >= 1.0:
+            pi_z = 0.0
+        else:
+            pi_z = ((1 - Z) ** alpha) * (1 + beta * Z + gamma * Z**2) * lambda_linear
+        return Lambda_temp_corrected * pi_z
+    else:
+        # Original polynomial: Λ(Z, T) = Λ_base(T) × (a + b×Z + c×Z² + d×Z³)
+        a, b, c, d = coeffs
+        poly_value = a + b * Z + c * Z**2 + d * Z**3
+        return Lambda_temp_corrected * poly_value
 
 
 def validate_vivacity_positive(Lambda_base: float,
-                                coeffs: tuple[float, float, float, float],
-                                T_prop_K: float = 294.0,
-                                temp_sensitivity_sigma_per_K: float = 0.0,
-                                n_points: int = 100) -> bool:
+                                 coeffs: tuple[float, float, float, float],
+                                 T_prop_K: float = 294.0,
+                                 temp_sensitivity_sigma_per_K: float = 0.0,
+                                 n_points: int = 100,
+                                 use_form_function: bool = False) -> bool:
     """Check that Λ(Z, T) > 0 for all Z ∈ [0, 1] at given temperature.
 
     Parameters
@@ -118,7 +127,7 @@ def validate_vivacity_positive(Lambda_base: float,
     Z_values = np.linspace(0, 0.99, n_points)  # Stop just before Z=1
 
     for Z in Z_values:
-        viv = calc_vivacity(Z, Lambda_base, coeffs, T_prop_K, temp_sensitivity_sigma_per_K)
+        viv = calc_vivacity(Z, Lambda_base, coeffs, T_prop_K, temp_sensitivity_sigma_per_K, use_form_function)
         if viv <= 0:
             return False
 
