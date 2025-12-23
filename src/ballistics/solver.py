@@ -113,9 +113,12 @@ def solve_ballistics(config: BallisticsConfig,
         if Z >= 1.0 and P_const is not None:
             # Post-burnout: adiabatic expansion
             P = P_const / (volume ** gamma)
+        elif Z < 0.001:
+            # Use initial pressure to prime the system
+            P = P_IN
         else:
             # Pre-burnout: energy balance
-            P = max(0, (C * Z * F - energy_loss) / volume) if volume > 0 else 0
+            P = max(P_IN, (C * Z * F - energy_loss) / volume) if volume > 0 else P_IN
 
         # Vivacity
         Lambda_Z = calc_vivacity(Z, Lambda_base, poly_coeffs)

@@ -38,7 +38,9 @@ class PropellantProperties:
         # Compute gamma from base
         gamma = 1.24 if props['base'] == 'S' else 1.22
 
-        # Normalize vivacity
+        # Normalize vivacity: Lambda_base for use with PSI
+        # If vivacity is in s^-1 per 100 bar, and 100 bar ≈ 1450 PSI,
+        # then Lambda_base_PSI = vivacity / 1450 gives s^-1 per PSI
         Lambda_base = props['vivacity'] / 1450
 
         # Extract polynomial coefficients
@@ -64,6 +66,7 @@ class BulletProperties:
     name: str
     s: float                     # Strength factor
     rho_p: float                 # lbm/in³
+    p_initial_psi: float = 3626.0  # Initial pressure for copper jacketed bullets
 
     @classmethod
     def from_database(cls, name: str, db_path: str | None = None):
@@ -84,10 +87,16 @@ class BulletProperties:
         from . import database
         props = database.get_bullet_type(name, db_path)
 
+        # Set initial pressure based on bullet type
+        # Copper jacketed bullets: 3626 psi (250 bar)
+        # Other types can be added as needed
+        p_initial = 3626.0  # Default for copper jacketed
+
         return cls(
             name=name,
             s=props['s'],
-            rho_p=props['rho_p']
+            rho_p=props['rho_p'],
+            p_initial_psi=p_initial
         )
 
 
@@ -104,7 +113,12 @@ class BallisticsConfig:
     bullet: BulletProperties
     temperature_f: float = 70.0
     phi: float = 0.9              # Piezometric coefficient
-    p_initial_psi: float = 5000.0
+    p_initial_psi: float | None = None  # If None, uses bullet.p_initial_psi
+
+    def __post_init__(self):
+        """Set initial pressure from bullet if not provided."""
+        if self.p_initial_psi is None:
+            self.p_initial_psi = self.bullet.p_initial_psi
 
     @property
     def effective_barrel_length_in(self) -> float:

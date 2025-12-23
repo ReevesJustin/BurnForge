@@ -11,6 +11,13 @@ from .database import (
     list_propellants,
     update_propellant_coefficients
 )
+from .fitting import fit_vivacity_polynomial
+from .io import (
+    load_chronograph_csv,
+    load_grt_project,
+    metadata_to_config,
+    export_fit_results
+)
 
 __all__ = [
     'solve_ballistics',
@@ -21,4 +28,9 @@ __all__ = [
     'get_bullet_type',
     'list_propellants',
     'update_propellant_coefficients',
+    'fit_vivacity_polynomial',
+    'load_chronograph_csv',
+    'load_grt_project',
+    'metadata_to_config',
+    'export_fit_results',
 ]
