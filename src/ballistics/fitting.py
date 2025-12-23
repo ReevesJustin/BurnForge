@@ -161,10 +161,14 @@ def fit_vivacity_polynomial(
             config.propellant = copy(config.propellant)
             config.propellant.Lambda_base = Lambda_base
             config.propellant.poly_coeffs = coeffs
-            config.propellant.temp_sensitivity_sigma_per_K = temp_sens
-            config.propellant.covolume_m3_per_kg = covolume
-            config.bore_friction_psi = bore_fric
-            config.start_pressure_psi = start_p
+            if fit_temp_sensitivity:
+                config.propellant.temp_sensitivity_sigma_per_K = temp_sens
+            if fit_covolume:
+                config.propellant.covolume_m3_per_kg = covolume
+            if fit_bore_friction:
+                config.bore_friction_psi = bore_fric
+            if fit_start_pressure:
+                config.start_pressure_psi = start_p
 
             # Solve ballistics
             try:
@@ -312,8 +316,8 @@ def fit_vivacity_polynomial(
             # Solve with overrides
             result = solve_ballistics(
                 config,
-                Lambda_override=Lambda_base,
-                coeffs_override=coeffs
+    
+    
             )
 
             # Compute weighted residual
