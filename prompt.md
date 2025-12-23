@@ -94,7 +94,9 @@ Current: Flat scripts with side effects.
 Improvement:
 textballistics_solver/
 ├── __init__.py
+├── README.md            # Brief overview of the project
 ├── database.py          # CRUD operations, schema management
+├── ballistics_data.db   # sqlite3 ballistics database
 ├── props.py             # Propellant & bullet property classes/loaders
 ├── solver.py            # Core ODE system, solve_ivp integration
 ├── burn_rate.py         # Vivacity functions, polynomial evaluation
@@ -103,10 +105,12 @@ textballistics_solver/
 ├── io.py                # CSV/JSON loaders, result exporters
 ├── plotting.py          # Velocity vs charge, vivacity curve, burnout maps
 └── utils.py             # Unit conversions, constants
+
 Benefits:
     Clean imports
     No global state
     GUI can import solver/fitting/database directly without running scripts
+After analyzing existing files, move to /archive directory
 
 4. Standardized Experimental Data Input Example
 Format (CSV):
@@ -128,15 +132,16 @@ Format (CSV):
     # Temperature (°F): 70
     # Firearm: Tikka T3x CTR
     # Notes: COAL to lands -0.020", primer CCI 250, brass Lapua, annealed necks
-charge_grains,mean_velocity_fps,velocity_sd,notes
-40.0,2575,9,
-40.5,2607,11,
-41.0,2639,10,
-41.5,2670,12,
-42.0,2701,11,
-42.5,2730,14,compressed
-43.0,2760,15,"primer flattening"
-...
+
+    charge_grains,mean_velocity_fps,velocity_sd,notes
+    40.0,2575,9,
+    40.5,2607,11,
+    41.0,2639,10,
+    41.5,2670,12,
+    42.0,2701,11,
+    42.5,2730,14,compressed
+    43.0,2760,15,"primer flattening"
+    ...
 
 Load with pandas → easy weighting by 1/SD² if desired.
 
@@ -207,6 +212,7 @@ Pythondef calc_dynamic_vivacity(Z: float, Lambda_base: float, coeffs: tuple[floa
         Dynamic vivacity Λ(Z)
     """
 8. GUI-Ready Design Principles
+    Stick with CLI version but keep consistent structure, functions, classes, etc for possible future GUI implementation
     All core modules pure functions or classes → no print() statements, no sys.argv parsing
     Configuration via explicit parameters or dataclass
     Plotting functions return matplotlib Figure/Axes objects (GUI can display or save)
