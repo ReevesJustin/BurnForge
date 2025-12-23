@@ -43,16 +43,20 @@ CREATE TABLE IF NOT EXISTS bullets (
 );
 
 CREATE TABLE IF NOT EXISTS propellants (
-    propellant_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    manufacturer TEXT NOT NULL,
-    name TEXT NOT NULL,
-    lot_number TEXT,
-    production_date TEXT,
-    burn_rate_relative REAL,  -- Relative burn rate (optional reference)
-    bulk_density REAL,  -- lb/in³
-    notes TEXT,
-    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(manufacturer, name, lot_number)
+    name TEXT PRIMARY KEY,
+    manufacturer TEXT,          -- Manufacturer name
+    vivacity REAL,              -- s^-1 per 100 bar
+    base TEXT,                  -- 'S' for single-base, 'D' for double-base
+    force REAL,                 -- Force constant (ft-lbf/lbm)
+    temp_0 REAL,                -- Flame temperature at reference condition (K)
+    temp_coeff_v REAL,          -- Temperature coefficient for vivacity (1/K)
+    temp_coeff_p REAL,          -- Temperature coefficient for pressure (1/K)
+    bulk_density REAL,          -- Bulk density (lbm/in^3)
+    poly_a REAL,                -- Polynomial coefficient a
+    poly_b REAL,                -- Polynomial coefficient b
+    poly_c REAL,                -- Polynomial coefficient c
+    poly_d REAL                 -- Polynomial coefficient d
+    , grain_geometry TEXT DEFAULT 'spherical', alpha REAL DEFAULT 0.0, temp_sensitivity_sigma_per_K REAL DEFAULT 0.002, covolume_m3_per_kg REAL DEFAULT 0.001, grain_geometry_type TEXT, perforations_count INTEGER DEFAULT 0, grain_diameter_mm REAL, grain_length_mm REAL, web_thickness_mm REAL, coating TEXT, composition TEXT, grain_confidence TEXT DEFAULT 'medium', grain_sources TEXT
 );
 
 CREATE TABLE IF NOT EXISTS cases (
@@ -67,6 +71,13 @@ CREATE TABLE IF NOT EXISTS cases (
     primer_pocket_spec TEXT,
     notes TEXT,
     created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS bullet_types (
+    name TEXT PRIMARY KEY,
+    s REAL,                     -- Strength factor
+    rho_p REAL,                 -- Density (lbm/in^3)
+    start_pressure_psi REAL DEFAULT 3626.0  -- Shot-start pressure threshold (psi)
 );
 
 -- ============================================================

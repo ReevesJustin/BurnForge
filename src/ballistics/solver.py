@@ -187,10 +187,8 @@ def solve_ballistics(
         bore_circumference = math.pi * D
         h_base_imperial = h_base * JOULES_TO_FT_LBF / (IN_TO_M**2 * 144)
     else:
-        # Empirical model
-        E_h_base_empirical = (
-            (0.38 * (T_0 - T_1) * D**1.5) / (1 + 0.6 * (D**2.175 / C**0.8375)) * 12
-        )
+        # Empirical model not implemented
+        raise NotImplementedError("Empirical heat loss model not implemented")
 
     # Secondary work coefficient
     mu_secondary = config.secondary_work_mu

@@ -39,9 +39,9 @@ print("=" * 60)
 print("Fitting Vivacity Polynomial")
 print("=" * 60)
 
-# Fit with verbose output, using hybrid geometric + pressure-dependent model
+# Fit with verbose output, using hybrid geometric + pressure-dependent + temperature-sensitive model
 fit_result = fit_vivacity_polynomial(
-    load_data, config, verbose=False, use_form_function=True
+    load_data, config, verbose=False, use_form_function=True, fit_temp_sensitivity=True
 )
 
 print()
@@ -91,10 +91,12 @@ print("=" * 60)
 
 Lambda_base = fit_result["Lambda_base"]
 alpha = fit_result.get("alpha", 0.0)
+sigma = fit_result.get("temp_sensitivity_sigma_per_K", 0.0)
 coeffs = (0.0, 0.0, 0.0, 0.0)  # dummy for compatibility
 
 print(f"Lambda_base: {Lambda_base:.6f}")
 print(f"Alpha (pressure correction): {alpha:.6f}")
+print(f"Sigma (temperature sensitivity): {sigma:.6f}")
 print(f"Grain geometry: {config.propellant.grain_geometry}")
 print()
 

@@ -13,7 +13,7 @@ def get_default_db_path() -> str:
     str
         Path from BALLISTICS_DB_PATH env var, else "data/ballistics_data.db"
     """
-    return os.environ.get('BALLISTICS_DB_PATH', 'data/ballistics_data.db')
+    return os.environ.get("BALLISTICS_DB_PATH", "data/db/ballistics_data.db")
 
 
 def get_propellant(name: str, db_path: str | None = None) -> dict:
@@ -42,34 +42,51 @@ def get_propellant(name: str, db_path: str | None = None) -> dict:
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT vivacity, base, force, temp_0, temp_coeff_v, temp_coeff_p, bulk_density,
                poly_a, poly_b, poly_c, poly_d,
-               covolume_m3_per_kg, temp_sensitivity_sigma_per_K
+               covolume_m3_per_kg, temp_sensitivity_sigma_per_K,
+               grain_geometry, grain_geometry_type, alpha
         FROM propellants WHERE name = ?
-    """, (name,))
+    """,
+        (name,),
+    )
 
     row = cursor.fetchone()
     conn.close()
 
     if not row:
-        raise ValueError(f"Propellant '{name}' not found in database. "
-                        f"Use list_propellants() to see available options.")
+        raise ValueError(
+            f"Propellant '{name}' not found in database. "
+            f"Use list_propellants() to see available options."
+        )
 
     return {
-        'vivacity': row[0],
-        'base': row[1],
-        'force': row[2],
-        'temp_0': row[3],
-        'temp_coeff_v': row[4],
-        'temp_coeff_p': row[5],
-        'bulk_density': row[6],
-        'poly_a': row[7],
-        'poly_b': row[8],
-        'poly_c': row[9],
-        'poly_d': row[10],
-        'covolume_m3_per_kg': row[11] if len(row) > 11 and row[11] is not None else 0.001,
-        'temp_sensitivity_sigma_per_K': row[12] if len(row) > 12 and row[12] is not None else 0.002
+        "vivacity": row[0],
+        "base": row[1],
+        "force": row[2],
+        "temp_0": row[3],
+        "temp_coeff_v": row[4],
+        "temp_coeff_p": row[5],
+        "bulk_density": row[6],
+        "poly_a": row[7],
+        "poly_b": row[8],
+        "poly_c": row[9],
+        "poly_d": row[10],
+        "covolume_m3_per_kg": row[11]
+        if len(row) > 11 and row[11] is not None
+        else 0.001,
+        "temp_sensitivity_sigma_per_K": row[12]
+        if len(row) > 12 and row[12] is not None
+        else 0.002,
+        "grain_geometry": row[13]
+        if len(row) > 13 and row[13] is not None
+        else "spherical",
+        "grain_geometry_type": row[14]
+        if len(row) > 14 and row[14] is not None
+        else None,
+        "alpha": row[15] if len(row) > 15 and row[15] is not None else 0.0,
     }
 
 
@@ -99,10 +116,13 @@ def get_bullet_type(name: str, db_path: str | None = None) -> dict:
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT s, rho_p, start_pressure_psi
+    cursor.execute(
+        """
+        SELECT s, rho_p
         FROM bullet_types WHERE name = ?
-    """, (name,))
+    """,
+        (name,),
+    )
 
     row = cursor.fetchone()
     conn.close()
@@ -111,15 +131,18 @@ def get_bullet_type(name: str, db_path: str | None = None) -> dict:
         raise ValueError(f"Bullet type '{name}' not found in database.")
 
     return {
-        's': row[0],
-        'rho_p': row[1],
-        'start_pressure_psi': row[2] if len(row) > 2 and row[2] is not None else 3626.0
+        "s": row[0],
+        "rho_p": row[1],
+        "start_pressure_psi": 3626.0,
     }
 
 
-def update_propellant_coefficients(name: str, Lambda_base: float,
-                                    coeffs: tuple[float, float, float, float],
-                                    db_path: str | None = None) -> None:
+def update_propellant_coefficients(
+    name: str,
+    Lambda_base: float,
+    coeffs: tuple[float, float, float, float],
+    db_path: str | None = None,
+) -> None:
     """Update vivacity polynomial coefficients for a propellant.
 
     Parameters
@@ -155,11 +178,14 @@ def update_propellant_coefficients(name: str, Lambda_base: float,
 
     # Update coefficients
     a, b, c, d = coeffs
-    cursor.execute("""
+    cursor.execute(
+        """
         UPDATE propellants
         SET vivacity = ?, poly_a = ?, poly_b = ?, poly_c = ?, poly_d = ?
         WHERE name = ?
-    """, (vivacity, a, b, c, d, name))
+    """,
+        (vivacity, a, b, c, d, name),
+    )
 
     conn.commit()
     conn.close()
@@ -219,6 +245,7 @@ def create_backup(db_path: str | None = None) -> str:
 
     # Copy database
     import shutil
+
     shutil.copy2(db_path, backup_path)
 
     return backup_path

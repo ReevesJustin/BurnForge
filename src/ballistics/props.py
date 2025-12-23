@@ -91,7 +91,9 @@ class PropellantProperties:
         # Extract new physics parameters (with defaults if not in DB)
         covolume = props.get("covolume_m3_per_kg", 0.001)
         temp_sensitivity = props.get("temp_sensitivity_sigma_per_K", 0.002)
-        grain_geometry = props.get("grain_geometry", "spherical")
+        grain_geometry = props.get(
+            "grain_geometry_type", props.get("grain_geometry", "spherical")
+        )
         alpha = props.get("alpha", 0.0)
 
         return cls(

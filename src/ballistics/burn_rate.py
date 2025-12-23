@@ -36,7 +36,7 @@ def form_function(Z: float, geometry: str) -> float:
     Z : float
         Burn fraction (0 ≤ Z ≤ 1)
     geometry : str
-        Grain geometry type: 'spherical', 'degressive', 'single-perf', 'neutral', '7-perf', 'progressive'
+        Grain geometry type: 'spherical', 'degressive', 'single-perf', 'neutral', '7-perf', 'progressive', 'solid_extruded', 'tubular_progressive'
 
     Returns
     -------
@@ -46,8 +46,12 @@ def form_function(Z: float, geometry: str) -> float:
     if geometry in ("spherical", "degressive"):
         # Spherical/degressive: π(Z) ≈ (1-Z)^{2/3}
         return (1 - Z) ** (2 / 3) if Z < 1 else 0.0
-    elif geometry in ("single-perf", "neutral"):
-        # Neutral cylinder: π(Z) = 1 - Z
+    elif geometry in ("single-perf", "tubular_progressive", "single-perforated"):
+        # Single-perf tubular: Slightly progressive, internal surface grows faster
+        # Approximation: π(Z) = 1 + 0.3*Z (slight progression)
+        return 1 + 0.3 * Z if Z < 0.9 else 0.0  # Sliver at Z=0.9
+    elif geometry in ("neutral", "solid_extruded"):
+        # Neutral cylinder or solid extruded: π(Z) = 1 - Z
         return 1 - Z if Z < 1 else 0.0
     elif geometry in ("7-perf", "progressive"):
         # Progressive 7-perf: Standard quadratic 1 + λZ + μZ² (up to slivering point)

@@ -17,8 +17,8 @@ from .props import BallisticsConfig
 def fit_vivacity_polynomial(
     load_data: pd.DataFrame,
     config_base: BallisticsConfig,
-    initial_guess: tuple[float, ...] | None = None,
-    bounds: tuple[tuple[float, float], ...] | None = None,
+    initial_guess: tuple[float, ...] | list[float] | None = None,
+    bounds: tuple[tuple[float, ...], tuple[float, ...]] | None = None,
     regularization: float = 0.0,
     method: str = "L-BFGS-B",
     verbose: bool = True,
@@ -115,7 +115,7 @@ def fit_vivacity_polynomial(
     if bounds is None:
         if use_form_function:
             bounds_lower = [0.01, 0.0]
-            bounds_upper = [0.15, 0.001]
+            bounds_upper = [0.15, 0.1]
         else:
             bounds_lower = [0.01, -2.0, -2.0, -2.0, -2.0]
             bounds_upper = [0.15, 2.0, 2.0, 2.0, 2.0]
@@ -342,7 +342,7 @@ def fit_vivacity_polynomial(
         if temp_sens_fit is not None
         else config_base.propellant.temp_sensitivity_sigma_per_K
     )
-    is_positive = validate_vivacity_positive(
+    validate_vivacity_positive(
         Lambda_base_fit,
         coeffs_fit,
         T_prop_K=config_base.temperature_f * 5 / 9 + 255.372,  # Convert to Kelvin
@@ -355,6 +355,22 @@ def fit_vivacity_polynomial(
     predicted_velocities = []
     residuals = []
     weights: list[float] = []
+
+    # Set fitted physics parameters (use fitted if available, else config defaults)
+    temp_sens = (
+        temp_sens_fit
+        if temp_sens_fit is not None
+        else config_base.propellant.temp_sensitivity_sigma_per_K
+    )
+    covolume = (
+        covolume_fit
+        if covolume_fit is not None
+        else config_base.propellant.covolume_m3_per_kg
+    )
+    bore_fric = (
+        bore_fric_fit if bore_fric_fit is not None else config_base.bore_friction_psi
+    )
+    start_p = start_p_fit if start_p_fit is not None else config_base.start_pressure_psi
 
     for idx_row, row in load_data.iterrows():
         # Update charge
@@ -420,7 +436,7 @@ def fit_vivacity_polynomial(
     rmse = np.sqrt(np.mean(residuals**2 * weights))
 
     # L2 regularization on coefficients (not Lambda_base)
-    penalty = regularization * (a_fit**2 + b_fit**2 + c_fit**2 + d_fit**2)
+    # penalty = regularization * (a_fit**2 + b_fit**2 + c_fit**2 + d_fit**2)  # Not used
 
     # Build return dict
     result_dict = {
