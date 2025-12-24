@@ -73,6 +73,9 @@ def calc_vivacity(
     geometry: str = "spherical",
     p_psi: float | None = None,
     alpha: float = 0.0,
+    use_hybrid: bool = False,
+    Lambda_base_hybrid: float = 0.0,
+    coeffs_hybrid: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0),
 ) -> float:
     """Compute dynamic vivacity Λ(Z, T) with optional temperature sensitivity and form function.
 
@@ -97,6 +100,12 @@ def calc_vivacity(
         Current chamber pressure (psi) for pressure-dependent correction. Default: None
     alpha : float, optional
         Pressure-dependent correction coefficient (s⁻¹/psi²). Default: 0.0
+    use_hybrid : bool, optional
+        Use hybrid mode combining form function and polynomial. Default: False
+    Lambda_base_hybrid : float, optional
+        Base vivacity for hybrid polynomial component. Default: 0.0
+    coeffs_hybrid : tuple, optional
+        (a, b, c, d) polynomial coefficients for hybrid component. Default: (0,0,0,0)
 
     Returns
     -------
@@ -111,6 +120,9 @@ def calc_vivacity(
 
     Form function mode: Λ(Z, p) = (Λ_base(T) + α × p) × π(Z)
     where π(Z) is the geometric form function based on grain geometry.
+
+    Hybrid mode: Λ(Z, p) = [(Λ_base(T) + α × p) × π(Z)] + [Λ_base_hybrid(T) × (a + b×Z + c×Z² + d×Z³)]
+    Combines geometric form function baseline with polynomial correction.
     """
     # Clamp Z to [0, 1]
     Z = max(0.0, min(1.0, Z))
@@ -130,7 +142,24 @@ def calc_vivacity(
     # Apply temperature correction to base vivacity
     Lambda_temp_corrected = Lambda_base * temp_multiplier
 
-    if use_form_function:
+    if use_hybrid:
+        # Hybrid mode: geometric form + polynomial correction
+        pi_z = form_function(Z, geometry)
+        if p_psi is not None and alpha > 0:
+            Lambda_pressure_corrected = Lambda_temp_corrected + alpha * p_psi
+        else:
+            Lambda_pressure_corrected = Lambda_temp_corrected
+        form_contribution = Lambda_pressure_corrected * pi_z
+
+        # Polynomial correction component
+        Lambda_temp_corrected_hybrid = Lambda_base_hybrid * temp_multiplier
+        a_h, b_h, c_h, d_h = coeffs_hybrid
+        poly_value_hybrid = a_h + b_h * Z + c_h * Z**2 + d_h * Z**3
+        poly_contribution = Lambda_temp_corrected_hybrid * poly_value_hybrid
+
+        return form_contribution + poly_contribution
+
+    elif use_form_function:
         # Geometric form function with pressure-dependent correction
         pi_z = form_function(Z, geometry)
         if p_psi is not None and alpha > 0:
@@ -154,6 +183,9 @@ def validate_vivacity_positive(
     use_form_function: bool = False,
     geometry: str = "spherical",
     alpha: float = 0.0,
+    use_hybrid: bool = False,
+    Lambda_base_hybrid: float = 0.0,
+    coeffs_hybrid: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0),
 ) -> bool:
     """Check that Λ(Z, T) > 0 for all Z ∈ [0, 1] at given temperature.
 
@@ -188,6 +220,9 @@ def validate_vivacity_positive(
             geometry,
             None,
             alpha,
+            use_hybrid,
+            Lambda_base_hybrid,
+            coeffs_hybrid,
         )
         if viv <= 0:
             return False

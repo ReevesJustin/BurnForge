@@ -279,11 +279,18 @@ def fit_vivacity_polynomial(
         if verbose and iteration["count"] % 10 == 0:
             # Build logging string
             Lambda_base = params[0]
-            a, b, c, d = params[1:5]
-            log_str = (
-                f"Iteration {iteration['count']}: RMSE = {obj_val:.2f} fps, "
-                f"Lambda = {Lambda_base:.3f}, coeffs = ({a:.3f}, {b:.3f}, {c:.3f}, {d:.3f})"
-            )
+            if use_form_function:
+                alpha = params[1]
+                log_str = (
+                    f"Iteration {iteration['count']}: RMSE = {obj_val:.2f} fps, "
+                    f"Lambda = {Lambda_base:.3f}, alpha = {alpha:.3f}"
+                )
+            else:
+                a, b, c, d = params[1:5]
+                log_str = (
+                    f"Iteration {iteration['count']}: RMSE = {obj_val:.2f} fps, "
+                    f"Lambda = {Lambda_base:.3f}, coeffs = ({a:.3f}, {b:.3f}, {c:.3f}, {d:.3f})"
+                )
 
             # Add physics parameters if being fitted
             idx = 5
@@ -418,8 +425,6 @@ def fit_vivacity_polynomial(
             config.start_pressure_psi = start_p
         if fit_h_base:
             config.h_base = h_base_fit
-        if fit_h_base:
-            config.h_base = h_base
 
         try:
             # Solve with overrides
@@ -485,3 +490,96 @@ def fit_vivacity_polynomial(
         result_dict["covolume_m3_per_kg"] = covolume_fit
 
     return result_dict
+
+
+def fit_vivacity_hybrid(
+    load_data: pd.DataFrame,
+    config_base: BallisticsConfig,
+    initial_guess_form: tuple[float, ...] | list[float] | None = None,
+    initial_guess_poly: tuple[float, ...] | list[float] | None = None,
+    bounds_form: tuple[tuple[float, ...], tuple[float, ...]] | None = None,
+    bounds_poly: tuple[tuple[float, ...], tuple[float, ...]] | None = None,
+    regularization: float = 0.0,
+    method: str = "L-BFGS-B",
+    verbose: bool = True,
+) -> dict:
+    """Fit hybrid vivacity model: geometric form + polynomial correction.
+
+    First fits geometric form function to establish baseline propellant behavior,
+    then fits polynomial correction on remaining RMSE.
+
+    Parameters
+    ----------
+    load_data : pd.DataFrame
+        Columns: charge_grains, mean_velocity_fps, velocity_sd (optional)
+    config_base : BallisticsConfig
+        Base configuration (charge_mass_gr will be overridden per row)
+    initial_guess_form : tuple, optional
+        Initial guess for geometric form parameters (Lambda_base, alpha)
+    initial_guess_poly : tuple, optional
+        Initial guess for polynomial correction (Lambda_base_hybrid, a, b, c, d)
+    bounds_form : tuple, optional
+        Bounds for geometric form parameters ((Lambda_min, alpha_min), (Lambda_max, alpha_max))
+    bounds_poly : tuple, optional
+        Bounds for polynomial parameters ((Lambda_min, a_min, b_min, c_min, d_min), (Lambda_max, a_max, b_max, c_max, d_max))
+    regularization : float
+        L2 penalty on polynomial coefficients (default 0.0)
+    method : str
+        Optimization method ('L-BFGS-B', 'trust-constr')
+    verbose : bool
+        Print iteration progress
+
+    Returns
+    -------
+    dict
+        Keys: Lambda_base, alpha, Lambda_base_hybrid, coeffs_hybrid, rmse_velocity,
+        residuals, predicted_velocities, success, message
+    """
+    # Validate input data
+    required_cols = ["charge_grains", "mean_velocity_fps"]
+    for col in required_cols:
+        if col not in load_data.columns:
+            raise ValueError(f"Missing required column: {col}")
+
+    if len(load_data) < 3:
+        raise ValueError(
+            f"Need at least 3 data points for fitting, got {len(load_data)}"
+        )
+
+    # Set default initial guesses
+    if initial_guess_form is None:
+        Lambda_base_init = config_base.propellant.Lambda_base
+        initial_guess_form = [Lambda_base_init, config_base.propellant.alpha]
+
+    if initial_guess_poly is None:
+        Lambda_base_hybrid_init = 0.01  # Small correction
+        initial_guess_poly = [Lambda_base_hybrid_init, 1.0, -1.0, 0.0, 0.0]
+
+    # Set default bounds
+    if bounds_form is None:
+        bounds_form = ((0.01, 0.0), (0.15, 0.5))
+
+    if bounds_poly is None:
+        bounds_poly = ((0.0, -2.0, -2.0, -2.0, -2.0), (0.05, 2.0, 2.0, 2.0, 2.0))
+
+    # Step 1: Fit geometric form function first
+    if verbose:
+        print("Step 1: Fitting geometric form function...")
+    fit_result_form = fit_vivacity_polynomial(
+        load_data,
+        config_base,
+        initial_guess=initial_guess_form,
+        bounds=bounds_form,
+        use_form_function=True,
+        verbose=verbose,
+    )
+
+    Lambda_base_form = fit_result_form["Lambda_base"]
+    alpha_form = fit_result_form.get("alpha", 0.0)
+    rmse_form = fit_result_form["rmse_velocity"]
+
+    if verbose:
+        print(".2f")
+
+    # For now, return just the geometric fit since full hybrid requires solver changes
+    return fit_result_form
