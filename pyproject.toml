@@ -19,7 +19,7 @@ cli = ["typer>=0.9.0"]  # CLI interface (optional for GUI use)
 dev = ["pytest>=7.0", "pytest-cov>=4.0", "black>=23.0", "ruff>=0.1.0"]
 
 [project.scripts]
-ballistics = "cli.main:app"  # Only installed if cli extras installed
+ballistics = "ballistics.cli.main:app"  # Only installed if cli extras installed
 
 [tool.setuptools.packages.find]
 where = ["src"]
