@@ -15,14 +15,14 @@ print(f"Database Lambda_base: {config.propellant.Lambda_base:.6f}")
 print()
 
 # Test with better initial guess
-print("="*70)
+print("=" * 70)
 print("Test 1: Better initial guess")
-print("="*70)
+print("=" * 70)
 
-better_guess = (0.025, 1.0, -0.5, 0.0, 0.0)  # Higher Lambda_base
+better_guess = (0.025, 1.0, -0.5, 0.0, 0.0, 0.0, 0.0)  # Higher Lambda_base + 6 coeffs
 better_bounds = (
-    (0.015, 0.5, -1.5, -1.0, -0.5),  # Lower bounds
-    (0.080, 1.5, 0.5, 1.0, 0.5),     # Upper bounds
+    (0.015, 0.5, -1.5, -1.0, -0.5, -0.5, -0.5),  # Lower bounds
+    (0.080, 1.5, 0.5, 1.0, 0.5, 0.5, 0.5),  # Upper bounds
 )
 
 fit_result = fit_vivacity_polynomial(
@@ -40,14 +40,18 @@ print(f"  RMSE: {fit_result['rmse_velocity']:.2f} fps")
 print(f"  Convergence: {fit_result['convergence']['success']}")
 
 # Check residuals
-residuals = np.array(fit_result['residuals'])
-charges = load_data['charge_grains'].values
-predicted = np.array(fit_result['predicted_velocities'])
-measured = load_data['mean_velocity_fps'].values
+residuals = np.array(fit_result["residuals"])
+charges = load_data["charge_grains"].values
+predicted = np.array(fit_result["predicted_velocities"])
+measured = load_data["mean_velocity_fps"].values
 
 print(f"\nDetailed Results:")
-for i, (charge, meas, pred, res) in enumerate(zip(charges, measured, predicted, residuals)):
-    print(f"  {charge:5.1f} gr: measured={meas:4.0f} fps, predicted={pred:4.0f} fps, residual={res:+6.1f} fps")
+for i, (charge, meas, pred, res) in enumerate(
+    zip(charges, measured, predicted, residuals)
+):
+    print(
+        f"  {charge:5.1f} gr: measured={meas:4.0f} fps, predicted={pred:4.0f} fps, residual={res:+6.1f} fps"
+    )
 
 print(f"\nBias Analysis:")
 mean_residual = np.mean(residuals)

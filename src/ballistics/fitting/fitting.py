@@ -122,7 +122,7 @@ def fit_vivacity_polynomial(
     if use_form_function:
         param_names = ["Lambda_base", "alpha"]
     else:
-        param_names = ["Lambda_base", "a", "b", "c", "d"]
+        param_names = ["Lambda_base", "a", "b", "c", "d", "e", "f"]
 
     # Set default initial guess
     if initial_guess is None:
@@ -130,11 +130,21 @@ def fit_vivacity_polynomial(
         if use_form_function:
             initial_guess = [Lambda_base_init, config_base.propellant.alpha]
         else:
-            a_init, b_init, c_init, d_init = config_base.propellant.poly_coeffs
+            a_init, b_init, c_init, d_init, e_init, f_init = (
+                config_base.propellant.poly_coeffs
+            )
             # Use database values if they're reasonable, else use defaults
             if a_init == 0 and b_init == 0 and c_init == 0 and d_init == 0:
                 a_init, b_init, c_init, d_init = 1.0, -1.0, 0.0, 0.0
-            initial_guess = [Lambda_base_init, a_init, b_init, c_init, d_init]
+            initial_guess = [
+                Lambda_base_init,
+                a_init,
+                b_init,
+                c_init,
+                d_init,
+                e_init,
+                f_init,
+            ]
 
         # Add physics parameters if requested (ensure no None values)
         if fit_temp_sensitivity:
@@ -177,8 +187,16 @@ def fit_vivacity_polynomial(
             bounds_lower = [0.01, 0.0]
             bounds_upper = [0.15, 0.5]
         else:
-            bounds_lower = [0.01, -2.0, -2.0, -2.0, -2.0]
-            bounds_upper = [0.15, 2.0, 2.0, 2.0, 2.0]
+            bounds_lower = [
+                0.01,
+                -2.0,
+                -2.0,
+                -2.0,
+                -2.0,
+                -1.0,
+                -1.0,
+            ]  # Tighter bounds for higher-order terms
+            bounds_upper = [0.15, 2.0, 2.0, 2.0, 2.0, 1.0, 1.0]
 
         # Add physics parameter bounds if requested
         if fit_temp_sensitivity:
@@ -238,10 +256,10 @@ def fit_vivacity_polynomial(
             coeffs = (1, 0, 0, 0)
             idx = 1
         else:
-            a, b, c, d = params[1:5]
-            coeffs = (a, b, c, d)
+            a, b, c, d, e, f = params[1:7]
+            coeffs = (a, b, c, d, e, f)
             alpha = 0.0
-            idx = 5
+            idx = 7
         temp_sens = (
             params[idx]
             if fit_temp_sensitivity
@@ -459,12 +477,12 @@ def fit_vivacity_polynomial(
     Lambda_base_fit = opt_result.x[0]
     if use_form_function:
         alpha_fit = opt_result.x[1]
-        coeffs_fit = (0.0, 0.0, 0.0, 0.0)  # dummy
+        coeffs_fit = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)  # dummy
         a_fit = b_fit = c_fit = d_fit = 0.0
         idx = 2
     else:
-        a_fit, b_fit, c_fit, d_fit = opt_result.x[1:5]
-        coeffs_fit = (a_fit, b_fit, c_fit, d_fit)
+        a_fit, b_fit, c_fit, d_fit, e_fit, f_fit = opt_result.x[1:7]
+        coeffs_fit = (a_fit, b_fit, c_fit, d_fit, e_fit, f_fit)
         alpha_fit = None
         idx = 5
     temp_sens_fit = None
@@ -652,7 +670,143 @@ def fit_vivacity_polynomial(
     if covolume_fit is not None:
         result_dict["covolume_m3_per_kg"] = covolume_fit
 
+    # Add bias detection warnings
+    if len(residuals) > 3:
+        residual_std = np.std(residuals)
+        residual_mean = np.mean(residuals)
+        if abs(residual_mean) > 2 * residual_std:
+            print(
+                f"WARNING: Residuals show systematic bias (mean = {residual_mean:.1f} fps, "
+                f"std = {residual_std:.1f} fps). Check model assumptions or data quality."
+            )
+
+        # Check for trends in residuals vs charge weight
+        charges = np.array(load_data["charge_grains"])
+        residuals_array = np.array(residuals)
+        if len(charges) == len(residuals_array):
+            correlation = np.corrcoef(charges, residuals_array)[0, 1]
+            if abs(correlation) > 0.5:
+                trend = "increasing" if correlation > 0 else "decreasing"
+                print(
+                    f"WARNING: Residuals show {trend} trend with charge weight "
+                    f"(correlation = {correlation:.2f}). Model may have systematic bias."
+                )
+
     return result_dict
+
+
+def leave_one_out_cross_validation(
+    load_data: pd.DataFrame,
+    config_base: BallisticsConfig,
+    fit_kwargs: dict | None = None,
+) -> dict:
+    """Perform leave-one-out cross-validation to assess model robustness.
+
+    Parameters
+    ----------
+    load_data : pd.DataFrame
+        Load data with columns: charge_grains, mean_velocity_fps, velocity_sd
+    config_base : BallisticsConfig
+        Base configuration
+    fit_kwargs : dict, optional
+        Additional arguments for fit_vivacity_polynomial
+
+    Returns
+    -------
+    dict
+        LOO CV results with keys:
+        - loo_rmse: Root mean square error of LOO predictions
+        - loo_mae: Mean absolute error of LOO predictions
+        - predicted_vs_actual: List of (actual, predicted) tuples
+        - fold_results: Individual fold results
+    """
+    if fit_kwargs is None:
+        fit_kwargs = {}
+
+    n_points = len(load_data)
+    predicted_vs_actual = []
+    fold_results = []
+
+    for i in range(n_points):
+        # Create training set (all points except i)
+        train_data = load_data.drop(index=i).reset_index(drop=True)
+        # Test point
+        test_point = load_data.iloc[i]
+
+        try:
+            # Fit model on training data
+            fit_result = fit_vivacity_polynomial(
+                train_data, config_base, verbose=False, **fit_kwargs
+            )
+
+            # Predict test point
+            from copy import deepcopy
+
+            test_config = deepcopy(config_base)
+            test_config.charge_mass_gr = test_point["charge_grains"]
+            test_config.charge_mass_gr = test_point["charge_grains"]
+            test_config.propellant.Lambda_base = fit_result["Lambda_base"]
+            test_config.propellant.poly_coeffs = fit_result["coeffs"]
+
+            # Add fitted physics parameters if they exist
+            for param in [
+                "temp_sensitivity_sigma_per_K",
+                "bore_friction_psi",
+                "start_pressure_psi",
+                "h_base",
+                "covolume_m3_per_kg",
+            ]:
+                if param in fit_result:
+                    setattr(test_config, param, fit_result[param])
+
+            pred_result = solve_ballistics(test_config)
+            predicted_velocity = pred_result["muzzle_velocity_fps"]
+            actual_velocity = test_point["mean_velocity_fps"]
+
+            predicted_vs_actual.append((actual_velocity, predicted_velocity))
+            fold_results.append(
+                {
+                    "fold": i,
+                    "charge": test_point["charge_grains"],
+                    "actual": actual_velocity,
+                    "predicted": predicted_velocity,
+                    "error": predicted_velocity - actual_velocity,
+                    "abs_error": abs(predicted_velocity - actual_velocity),
+                }
+            )
+
+        except Exception as e:
+            print(f"Warning: LOO fold {i} failed: {e}")
+            predicted_vs_actual.append((test_point["mean_velocity_fps"], float("nan")))
+            fold_results.append(
+                {
+                    "fold": i,
+                    "charge": test_point["charge_grains"],
+                    "actual": test_point["mean_velocity_fps"],
+                    "predicted": float("nan"),
+                    "error": float("nan"),
+                    "abs_error": float("nan"),
+                }
+            )
+
+    # Calculate LOO statistics
+    valid_predictions = [(a, p) for a, p in predicted_vs_actual if not np.isnan(p)]
+    if valid_predictions:
+        actuals, preds = zip(*valid_predictions)
+        errors = np.array(preds) - np.array(actuals)
+        loo_rmse = np.sqrt(np.mean(errors**2))
+        loo_mae = np.mean(np.abs(errors))
+    else:
+        loo_rmse = loo_mae = float("nan")
+
+    return {
+        "loo_rmse": loo_rmse,
+        "loo_mae": loo_mae,
+        "predicted_vs_actual": predicted_vs_actual,
+        "fold_results": fold_results,
+        "n_folds": n_points,
+        "n_valid_folds": len(valid_predictions),
+    }
 
 
 def fit_vivacity_sequential(

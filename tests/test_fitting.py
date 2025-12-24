@@ -102,8 +102,11 @@ def test_bounds_enforcement():
         }
     )
 
-    # Custom bounds
-    custom_bounds = ((30.0, -1.0, -1.0, -1.0, -1.0), (100.0, 1.0, 1.0, 1.0, 1.0))
+    # Custom bounds (Lambda_base + 6 coefficients)
+    custom_bounds = (
+        (30.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0),
+        (100.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0),
+    )
 
     fit_result = fit_vivacity_polynomial(
         load_data, config_base, bounds=custom_bounds, verbose=False

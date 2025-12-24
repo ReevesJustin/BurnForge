@@ -37,7 +37,7 @@ class PropellantProperties:
     gamma: float  # Specific heat ratio (computed from base)
     bulk_density: float  # lbm/in³
     Lambda_base: float  # Vivacity normalized (vivacity / 1450)
-    poly_coeffs: tuple[float, float, float, float]  # (a, b, c, d)
+    poly_coeffs: tuple[float, float, float, float, float, float]  # (a, b, c, d, e, f)
 
     # Grain geometry for hybrid burn rate model
     grain_geometry: str = "spherical"  # 'spherical', 'degressive', 'single-perf', 'neutral', '7-perf', 'progressive'
@@ -80,12 +80,14 @@ class PropellantProperties:
         # then Lambda_base_PSI = vivacity / 1450 gives s^-1 per PSI
         Lambda_base = props["vivacity"] / 1450
 
-        # Extract polynomial coefficients
+        # Extract polynomial coefficients (extended to 6 parameters)
         poly_coeffs = (
             props["poly_a"],
             props["poly_b"],
             props["poly_c"],
             props["poly_d"],
+            props.get("poly_e", 0.0),  # Default to 0 for backward compatibility
+            props.get("poly_f", 0.0),  # Default to 0 for backward compatibility
         )
 
         # Extract new physics parameters (with defaults if not in DB)

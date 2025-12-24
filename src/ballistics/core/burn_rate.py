@@ -66,7 +66,7 @@ def form_function(Z: float, geometry: str) -> float:
 def calc_vivacity(
     Z: float,
     Lambda_base: float,
-    coeffs: tuple[float, float, float, float],
+    coeffs: tuple,
     T_prop_K: float = 294.0,
     temp_sensitivity_sigma_per_K: float = 0.0,
     use_form_function: bool = False,
@@ -86,7 +86,7 @@ def calc_vivacity(
     Lambda_base : float
         Base vivacity at reference temperature (s⁻¹ per PSI)
     coeffs : tuple
-        (a, b, c, d) polynomial coefficients for Λ(p) or (α, β, γ, Λ_linear) for form function
+        (a, b, c, d, e, f) polynomial coefficients for Λ(p) or (α, β, γ, Λ_linear) for form function
     T_prop_K : float, optional
         Propellant temperature (K). Default: 294 K (70°F)
     temp_sensitivity_sigma_per_K : float, optional
@@ -168,15 +168,22 @@ def calc_vivacity(
             Lambda_pressure_corrected = Lambda_temp_corrected
         return Lambda_pressure_corrected * pi_z
     else:
-        # Original polynomial: Λ(Z, T) = Λ_base(T) × (a + b×Z + c×Z² + d×Z³)
-        a, b, c, d = coeffs
-        poly_value = a + b * Z + c * Z**2 + d * Z**3
+        # Original polynomial: Λ(Z, T) = Λ_base(T) × (a + b×Z + c×Z² + d×Z³ + e×Z⁴ + f×Z⁵)
+        if len(coeffs) == 6:
+            a, b, c, d, e, f = coeffs
+            poly_value = a + Z * (b + Z * (c + Z * (d + Z * (e + Z * f))))
+        elif len(coeffs) == 4:
+            a, b, c, d = coeffs
+            e, f = 0.0, 0.0  # Backward compatibility
+            poly_value = a + Z * (b + Z * (c + Z * d))
+        else:
+            raise ValueError(f"Expected 4 or 6 coefficients, got {len(coeffs)}")
         return Lambda_temp_corrected * poly_value
 
 
 def validate_vivacity_positive(
     Lambda_base: float,
-    coeffs: tuple[float, float, float, float],
+    coeffs: tuple,
     T_prop_K: float = 294.0,
     temp_sensitivity_sigma_per_K: float = 0.0,
     n_points: int = 100,
@@ -194,7 +201,7 @@ def validate_vivacity_positive(
     Lambda_base : float
         Base vivacity at reference temperature
     coeffs : tuple
-        (a, b, c, d) polynomial coefficients
+        (a, b, c, d, e, f) polynomial coefficients
     T_prop_K : float, optional
         Propellant temperature (K). Default: 294 K
     temp_sensitivity_sigma_per_K : float, optional
