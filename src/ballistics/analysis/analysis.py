@@ -67,7 +67,7 @@ def burnout_scan_charge(
                 }
             )
 
-        except Exception as e:
+        except Exception:
             # If solver fails, add NaN results
             results.append(
                 {
@@ -135,7 +135,7 @@ def burnout_scan_barrel(
                 }
             )
 
-        except Exception as e:
+        except Exception:
             results.append(
                 {
                     "barrel_length_in": barrel,

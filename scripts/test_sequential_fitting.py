@@ -13,7 +13,7 @@ from ballistics import (
 def test_parameter_sensitivities():
     """Test parameter impact order on GRT files."""
     grt_files = [
-        "data/grt_files/65CM_130SMK_N150_Starline_Initial.grtload",  # Test on N150
+        "data/grt_files/65CM_130SMK_N150_Starline.grtload",  # Test on N150
     ]
 
     for grt_file in grt_files:

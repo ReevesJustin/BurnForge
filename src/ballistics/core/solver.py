@@ -182,7 +182,9 @@ def solve_ballistics(
 
     # New physics parameters (continued)
     bore_friction_psi = config.bore_friction_psi
-    shot_start_pressure = config.start_pressure_psi  # Uses calibratable threshold
+    shot_start_pressure = float(
+        config.start_pressure_psi or 0.0
+    )  # Uses calibratable threshold, guaranteed to be float after config init
 
     # State tracking
     peak_pressure = P_IN
@@ -210,7 +212,7 @@ def solve_ballistics(
         T_ref = config.T_ref_K
         v_ref = config.v_ref_in_s
         bore_circumference = math.pi * D
-        h_base_imperial = h_base * JOULES_TO_FT_LBF / (IN_TO_M**2 * 144)
+        h_base_imperial = h_base * 0.038071
     else:
         # Empirical model not implemented
         raise NotImplementedError("Empirical heat loss model not implemented")
@@ -286,8 +288,8 @@ def solve_ballistics(
                 * (v_gas / v_ref) ** h_gamma
             )
 
-            delta_T = max(T_gas - T_wall, 0.0)
-            bore_surface_area = bore_circumference * x
+            delta_T = max((T_gas - T_wall) / 1.8, 0.0)
+            bore_surface_area = bore_circumference * x / 144
             E_h = h_t * bore_surface_area * delta_T if x > 0 else 0.0
 
         # --- Secondary Work Coefficient (Modern Formulation) ---
@@ -543,7 +545,10 @@ def solve_ballistics(
         results["v"] = sol.y[1]
         results["x"] = sol.y[2]
         # Compute pressure trace
-        P_trace = [compute_pressure(sol.y[0, i], sol.y[1, i], sol.y[2, i]) for i in range(len(sol.t))]
+        P_trace = [
+            compute_pressure(sol.y[0, i], sol.y[1, i], sol.y[2, i])
+            for i in range(len(sol.t))
+        ]
         results["P"] = P_trace
 
     # Performance profiling

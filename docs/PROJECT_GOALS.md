@@ -1,6 +1,6 @@
 # IB_Solver v2.0.0 - Project Goals & Plan
 
-## Primary Mission
+## Project Objective
 **Characterize propellant burn characteristics** through multi-physics parameter fitting from chronograph velocity data, enabling accurate prediction of propellant burnout distance and pressure development for ballisticians, engineers, and professional reloaders.
 
 ## Core Use Cases
@@ -16,7 +16,7 @@
 - **Analysis Tools**: Burnout scans, parameter sensitivity, model validation
 - **Modular Design**: Clean separation of physics, fitting, I/O, and analysis components
 
-## Key Differentiators
+## Technical Features
 - **Velocity-Only Calibration**: No pressure traces required - fits from chronograph data alone
 - **Advanced Physics**: Noble-Abel EOS, convective heat transfer, temperature sensitivity
 - **Professional Workflow**: GRT integration, comprehensive validation, database persistence

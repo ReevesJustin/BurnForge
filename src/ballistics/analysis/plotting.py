@@ -6,12 +6,9 @@ for non-interactive use and save to PNG files.
 """
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 from typing import Optional, Dict, Any
 from matplotlib.figure import Figure
-
-from ballistics.core.props import BallisticsConfig
 
 
 def plot_velocity_fit(
