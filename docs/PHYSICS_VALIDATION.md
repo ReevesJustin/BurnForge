@@ -60,7 +60,7 @@ The published data comparison feature validates IB_Solver physics models against
 - `test_low_velocity_regime`: Subsonic velocities (<1,100 fps)
 - `test_very_fast_burners`: High vivacity propellants (Λ > 0.1)
 - `test_very_slow_burners`: Low vivacity propellants (Λ < 0.01)
-- `test_temperature_extremes`: -40°F to 140°F operating range
+- `test_temperature_extremes`: -40F to 140F operating range
 - `test_barrel_length_extremes`: Very short (<10") and long (>30") barrels
 
 **Numerical Stability Tests**:

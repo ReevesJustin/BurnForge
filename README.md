@@ -1,10 +1,10 @@
 # IB_Solver v2.0.0
 
-**Modular Python package for scientific internal ballistics modeling with advanced propellant characterization capabilities.**
+**Modular Python package for internal ballistics modeling with propellant characterization.**
 
 > IMPORTANT: If you're using a database from before 2024-12-24, see [BUGFIX.md](docs/BUGFIX.md) for critical fixes.
 >
->  **CURRENT STATUS**: Validation shows RMSE 4-9 fps on test datasets, including cold data (45°F). Test coverage 100%. Advanced fitting features implemented including 6-parameter polynomials, bias detection, LOO CV, and geometric form functions. Limitations include velocity-only calibration and single-temperature dataset constraints. (2025-12-24)
+>  **CURRENT STATUS**: Validation shows RMSE 4-9 fps on test datasets, including cold data (45°F). Test coverage 60% (47/49 tests passing, 2 skipped). Fitting features include 6-parameter polynomials, bias detection, LOO CV, and geometric form functions. Limitations include velocity-only calibration and single-temperature dataset constraints. (2025-12-24)
 
 ## Overview
 
@@ -280,7 +280,7 @@ export BALLISTICS_DB_PATH=/path/to/custom/database.db
 - **Database**: Full relational schema with integrity validation (19 tests)
 - **Accuracy**: 4-9 fps RMSE on validation datasets including cold data
 - **Solver Stability**: 100% success rate on test datasets
-- **Test Coverage**: 100% (all tests passing)
+- **Test Coverage**: 60% (47/49 tests passing, 2 skipped)
 - **Memory**: ~2MB per simulation
 
 ### Validation Results (2024-12-24)
@@ -303,7 +303,7 @@ export BALLISTICS_DB_PATH=/path/to/custom/database.db
 - **Bias Detection Warnings**: Automatic detection and warnings for systematic bias in fit residuals and trends with charge weight
 - **Leave-One-Out Cross-Validation**: LOO CV implementation for assessing model robustness and prediction reliability
 - **Geometric Form Function Mode**: Support for grain geometry-based form functions as alternative to pure polynomial burn rates
-- **Test Suite**: 100% test coverage achieved with all tests passing
+- **Test Suite**: 60% test coverage (47/49 tests passing, 2 skipped)
 
 ### v2.0.0+ (2024-12-24) - Database Correction
 - Corrected propellant force values in database (previously 5x too high)
