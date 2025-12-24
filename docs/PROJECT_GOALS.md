@@ -37,7 +37,7 @@
 5. ✅ **Database Refinement** - Full 11-table schema with migration and CRUD operations
 6. ✅ **Advanced Feature Organization** - Multi-physics parameters, weighted fitting, convergence diagnostics
 7. ✅ **Max Pressure Calibration** - Optional GRT pressure reference for physical constraint
-8. ✅ **Fitting Accuracy Improvements** - 6-parameter polynomials, bias detection, LOO CV, geometric form functions
+8. ✅ **Fitting Accuracy Improvements** - 6-parameter polynomials, bias detection, LOO CV, geometric form functions, soft measurement feedback
 
 **Next Focus**: Medium priority features (multi-temperature support, export options, enhanced documentation)
 

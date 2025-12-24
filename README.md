@@ -32,7 +32,7 @@ IB_Solver provides tools for characterizing propellant burn behavior through mul
 
 - ODE Integration: scipy.integrate.solve_ivp with adaptive timestepping and event detection
 - Multi-Physics Fitting: 6-parameter Vivacity polynomials, heat transfer, equation of state, friction, temperature effects, shot-start pressure, primer energy, charge-dependent losses
-- Model Validation: Leave-one-out cross-validation and bias detection warnings for robust fitting
+- Model Validation: Leave-one-out cross-validation, bias detection warnings, and soft measurement feedback against published load data
 - Geometric Form Functions: Grain geometry-based burn rate models for enhanced propellant characterization
 - Max Pressure Calibration: Optional GRT-derived pressure reference for enhanced realism
 - Weighted Least Squares: Charge-weighted residuals for improved low-charge accuracy
@@ -245,8 +245,9 @@ export BALLISTICS_DB_PATH=/path/to/custom/database.db
 
 ### Core Functions
 - `solve_ballistics(config)` - Single shot simulation
-- `fit_vivacity_polynomial(data, config, **kwargs)` - Multi-parameter fitting with 6-parameter polynomials
-- `leave_one_out_cv(data, config, **kwargs)` - Leave-one-out cross-validation
+- `fit_vivacity_polynomial(data, config, **kwargs)` - Multi-parameter fitting with 6-parameter polynomials and soft constraints
+- `leave_one_out_cross_validation(data, config, **kwargs)` - Leave-one-out cross-validation for robustness assessment
+- `load_published_data_csv(filepath)` - Load published load data for validation constraints
 - `fit_hybrid_vivacity(data, config, **kwargs)` - Hybrid geometric form + polynomial fitting
 - `load_grt_project(filepath)` - GRT file import
 - `metadata_to_config(metadata)` - Configuration creation

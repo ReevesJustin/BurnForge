@@ -1,0 +1,4 @@
+cartridge,propellant_name,bullet_weight_gr,published_pressure_psi,pressure_type,source,uncertainty_psi,confidence_level,notes
+.308 Winchester,N150,175,55000,MAP,SAAMI,500,high,SAAMI maximum average pressure
+.308 Winchester,N150,168,54000,MAP,Hodgdon,400,medium,Hodgdon published data
+6.5 Creedmoor,Hodgdon H4350,140,62000,MAP,SAAMI,600,high,SAAMI maximum average pressure

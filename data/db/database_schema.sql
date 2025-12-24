@@ -247,6 +247,26 @@ CREATE TABLE IF NOT EXISTS simulation_results (
 );
 
 -- ============================================================
+-- Published Load Data Tables
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS published_load_specs (
+    spec_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cartridge TEXT NOT NULL,  -- e.g., ".308 Winchester", "6.5 Creedmoor"
+    propellant_name TEXT NOT NULL,
+    bullet_weight_gr REAL NOT NULL,
+    published_pressure_psi REAL NOT NULL,
+    pressure_type TEXT NOT NULL,  -- 'MAP' (Maximum Average Pressure), 'CIP', 'SAAMI'
+    source TEXT NOT NULL,  -- 'SAAMI', 'Hodgdon', 'Vihtavuori', etc.
+    charge_grains REAL,  -- Reference charge weight if specified
+    uncertainty_psi REAL DEFAULT 0.0,  -- Pressure uncertainty
+    confidence_level TEXT DEFAULT 'medium',  -- 'high', 'medium', 'low'
+    notes TEXT,
+    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(cartridge, propellant_name, bullet_weight_gr, source, pressure_type)
+);
+
+-- ============================================================
 -- Indexes for Performance
 -- ============================================================
 
