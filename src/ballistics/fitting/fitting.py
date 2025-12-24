@@ -5,7 +5,7 @@ chronograph data, with optional physics parameter calibration.
 """
 
 import numpy as np
-from scipy.optimize import minimize
+from scipy.optimize import minimize, least_squares
 import pandas as pd
 from copy import deepcopy as copy
 
@@ -27,7 +27,11 @@ def fit_vivacity_polynomial(
     fit_start_pressure: bool = False,
     fit_covolume: bool = False,
     fit_h_base: bool = False,
+    fit_k_param: bool = False,
+    fit_p_primer: bool = False,
     use_form_function: bool = False,
+    include_pressure_penalty: bool = False,
+    pressure_weight: float = 0.3,
 ) -> dict:
     """Fit vivacity polynomial and optional physics parameters from load ladder data.
 
@@ -59,6 +63,10 @@ def fit_vivacity_polynomial(
         If True, fit shot-start pressure threshold (psi)
     fit_covolume : bool
         If True, fit Noble-Abel covolume (m³/kg) - usually not recommended
+    include_pressure_penalty : bool
+        If True, include max pressure reference penalty in loss function (requires p_max_psi in data)
+    pressure_weight : float
+        Weight for pressure penalty term in combined loss (default 0.3)
 
     Returns
     -------
@@ -77,6 +85,38 @@ def fit_vivacity_polynomial(
         raise ValueError(
             f"Need at least 3 data points for fitting, got {len(load_data)}"
         )
+
+    # Data validation checks
+    max_charge = load_data["charge_grains"].max()
+    fill_ratios = load_data["charge_grains"] / max_charge
+
+    if (fill_ratios < 0.8).any():
+        print(
+            "Warning: Some charges have fill ratio < 0.8, which may indicate invalid data or extreme loads"
+        )
+    if (fill_ratios > 1.05).any():
+        print(
+            "Warning: Some charges have fill ratio > 1.05, which may indicate compressed loads"
+        )
+
+    velocity_range = (
+        load_data["mean_velocity_fps"].max() - load_data["mean_velocity_fps"].min()
+    )
+    if velocity_range < 50:
+        print("Warning: Small velocity range (<50 fps) may limit fitting accuracy")
+
+    # Extract optional max pressure reference
+    grt_p_max_reference = None
+    if "p_max_psi" in load_data.columns:
+        # Use the value for the highest charge weight only
+        max_charge_row = load_data[load_data["charge_grains"] == max_charge]
+        if not max_charge_row.empty:
+            p_max_val = max_charge_row["p_max_psi"].values[0]
+            if pd.notna(p_max_val):
+                grt_p_max_reference = float(p_max_val)
+                print(
+                    f"Using max pressure reference: {grt_p_max_reference:.0f} psi for {max_charge:.1f}gr charge"
+                )
 
     # Build parameter names list (for tracking what we're fitting)
     if use_form_function:
@@ -108,10 +148,13 @@ def fit_vivacity_polynomial(
                 initial_guess.append(bore_fric_val)
                 param_names.append("bore_fric")
         if fit_start_pressure:
-            start_p_val = config_base.start_pressure_psi
-            if start_p_val is not None:
-                initial_guess.append(start_p_val)
-                param_names.append("start_p")
+            start_p_val = (
+                config_base.start_pressure_psi
+                if config_base.start_pressure_psi is not None
+                else 2000.0
+            )
+            initial_guess.append(start_p_val)
+            param_names.append("start_p")
         if fit_covolume:
             covolume_val = config_base.propellant.covolume_m3_per_kg
             if covolume_val is not None:
@@ -150,6 +193,9 @@ def fit_vivacity_polynomial(
         if fit_h_base:
             bounds_lower.append(500.0)  # h_base ∈ [500, 10000] W/m²·K
             bounds_upper.append(10000.0)
+        if fit_k_param:
+            bounds_lower.append(0.0)  # k_param ∈ [0, 0.5]
+            bounds_upper.append(0.5)
 
         bounds = (tuple(bounds_lower), tuple(bounds_upper))
 
@@ -166,10 +212,19 @@ def fit_vivacity_polynomial(
         fit_start_pressure,
         fit_covolume,
         fit_h_base,
+        fit_k_param,
+        fit_p_primer,
         use_form_function,
         geometry,
+        grt_p_max_reference,
+        include_pressure_penalty,
+        pressure_weight,
+        max_charge,
     ):
         """Objective function for scipy.optimize.minimize."""
+
+        # Compute max charge for weighting and fill ratio
+        max_charge = load_data["charge_grains"].max()
 
         # Unpack parameters
         Lambda_base = params[0]
@@ -197,6 +252,10 @@ def fit_vivacity_polynomial(
         )
         idx += 1 if fit_covolume else 0
         h_base = params[idx] if fit_h_base else config_base.h_base
+        idx += 1 if fit_h_base else 0
+        k_param = params[idx] if fit_k_param else config_base.k_param
+        idx += 1 if fit_k_param else 0
+        p_primer = params[idx] if fit_p_primer else config_base.p_primer_psi
 
         # Check vivacity positivity constraint
         T_prop_K = config_base.temperature_f * 5 / 9 + 255.372  # Convert to Kelvin
@@ -212,54 +271,58 @@ def fit_vivacity_polynomial(
         ):
             return 1e10  # Large penalty for invalid parameters
 
-        residuals = []
-        weights = []
+    # Compute max charge for weighting and fill ratio
+    max_charge = load_data["charge_grains"].max()
 
-        for idx_row, row in load_data.iterrows():
-            # Update charge
-            config = copy(config_base)
-            config.charge_mass_gr = float(row["charge_grains"])  # type: ignore
+    residuals = []
+    weights = []
 
-            # Apply physics parameters
-            config.propellant = copy(config.propellant)
-            config.propellant.Lambda_base = Lambda_base
-            config.propellant.poly_coeffs = coeffs
-            if use_form_function:
-                config.propellant.alpha = alpha
-            config.use_form_function = use_form_function
-            if fit_temp_sensitivity:
-                config.propellant.temp_sensitivity_sigma_per_K = temp_sens
-            if fit_covolume:
-                config.propellant.covolume_m3_per_kg = covolume
-            if fit_bore_friction:
-                config.bore_friction_psi = bore_fric
-            if fit_start_pressure:
-                config.start_pressure_psi = start_p
+    for idx_row, row in load_data.iterrows():
+        # Update charge
+        config = copy(config_base)
+        config.charge_mass_gr = float(row["charge_grains"])  # type: ignore
 
-            # Solve ballistics
-            try:
-                results = solve_ballistics(config)
-                predicted_v = results["muzzle_velocity_fps"]
-                measured_v = float(row["mean_velocity_fps"])
-                residual = predicted_v - measured_v
-                residuals.append(residual)
+        # Apply physics parameters
+        config.propellant = copy(config.propellant)
+        config.propellant.Lambda_base = Lambda_base
+        config.propellant.poly_coeffs = coeffs
+        if use_form_function:
+            config.propellant.alpha = alpha
+        config.use_form_function = use_form_function
+        if fit_temp_sensitivity:
+            config.propellant.temp_sensitivity_sigma_per_K = temp_sens
+        if fit_covolume:
+            config.propellant.covolume_m3_per_kg = covolume
+        if fit_bore_friction:
+            config.bore_friction_psi = bore_fric
+        if fit_start_pressure:
+            config.start_pressure_psi = start_p
 
-                # Weight by inverse variance if available
-                if (
-                    "velocity_sd" in row
-                    and pd.notna(row["velocity_sd"])
-                    and row["velocity_sd"] > 0
-                ):
-                    weight = 1.0 / (row["velocity_sd"] ** 2)
-                else:
-                    weight = 1.0
-                weights.append(weight)
+        # Solve ballistics
+        try:
+            results = solve_ballistics(config)
+            predicted_v = results["muzzle_velocity_fps"]
+            measured_v = float(row["mean_velocity_fps"])
+            residual = predicted_v - measured_v
+            residuals.append(residual)
 
-            except Exception:
-                # If solver fails, return large penalty
-                return 1e10
+            # Weight by charge fraction and inverse variance if available
+            charge_weight = row["charge_grains"] / max_charge
+            if (
+                "velocity_sd" in row
+                and pd.notna(row["velocity_sd"])
+                and row["velocity_sd"] > 0
+            ):
+                weight = charge_weight / (row["velocity_sd"] ** 2)
+            else:
+                weight = charge_weight
+            weights.append(weight)
 
-        # Calculate weighted RMSE
+        except Exception:
+            # If solver fails, return large penalty
+            return 1e10
+
+        # Calculate weighted RMSE for minimization
         residuals_np = np.array(residuals)
         weights_np = np.array(weights)
         if np.sum(weights_np) > 0:
@@ -268,7 +331,46 @@ def fit_vivacity_polynomial(
             )
         else:
             weighted_rmse = np.sqrt(np.mean(residuals_np**2))
-        return weighted_rmse
+
+        # Add optional pressure penalty
+        pressure_penalty = 0.0
+        if include_pressure_penalty and grt_p_max_reference is not None:
+            # Run simulation for the max charge only
+            max_charge_config = copy(config_base)
+            max_charge_config.charge_mass_gr = max_charge
+            max_charge_config.max_charge_gr = max_charge
+
+            # Apply fitted parameters
+            max_charge_config.propellant.Lambda_base = Lambda_base
+            max_charge_config.propellant.poly_coeffs = coeffs
+            if use_form_function:
+                max_charge_config.propellant.alpha = alpha
+            if fit_temp_sensitivity:
+                max_charge_config.propellant.temp_sensitivity_sigma_per_K = temp_sens
+            if fit_covolume:
+                max_charge_config.propellant.covolume_m3_per_kg = covolume
+            if fit_bore_friction:
+                max_charge_config.bore_friction_psi = bore_fric
+            if fit_start_pressure:
+                max_charge_config.start_pressure_psi = start_p
+            if fit_h_base:
+                max_charge_config.h_base = h_base
+            if fit_k_param:
+                max_charge_config.k_param = k_param
+            if fit_p_primer:
+                max_charge_config.p_primer_psi = p_primer
+
+            try:
+                result_max = solve_ballistics(max_charge_config)
+                sim_p_max = result_max["peak_pressure_psi"]
+                pressure_penalty = (
+                    (sim_p_max - grt_p_max_reference) / grt_p_max_reference
+                ) ** 2
+            except Exception:
+                pressure_penalty = 1.0  # Large penalty for solver failure
+
+        combined_loss = weighted_rmse + pressure_weight * pressure_penalty
+        return combined_loss
 
     def objective_with_logging(params):
         """Wrapper to add logging to objective function."""
@@ -282,8 +384,14 @@ def fit_vivacity_polynomial(
             fit_start_pressure,
             fit_covolume,
             fit_h_base,
+            fit_k_param,
+            fit_p_primer,
             use_form_function,
             config_base.propellant.grain_geometry,
+            grt_p_max_reference,
+            include_pressure_penalty,
+            pressure_weight,
+            max_charge,
         )
         iteration["count"] += 1
         if verbose and iteration["count"] % 10 == 0:
@@ -319,6 +427,15 @@ def fit_vivacity_polynomial(
             if fit_covolume:
                 covolume = params[idx]
                 log_str += f", covolume = {covolume:.6f}"
+                idx += 1
+            if fit_h_base:
+                h_base_val = params[idx]
+                log_str += f", h_base = {h_base_val:.0f}"
+                idx += 1
+            if fit_k_param:
+                k_param_val = params[idx]
+                log_str += f", k_param = {k_param_val:.3f}"
+                idx += 1
 
             print(log_str)
 
@@ -366,6 +483,10 @@ def fit_vivacity_polynomial(
     if fit_h_base:
         h_base_fit = opt_result.x[idx]
         idx += 1
+    k_param_fit = None
+    if fit_k_param:
+        k_param_fit = opt_result.x[idx]
+        idx += 1
 
     # Validate vivacity positivity
     # Use fitted temperature sensitivity if available, else use config value
@@ -383,6 +504,9 @@ def fit_vivacity_polynomial(
     )
 
     # Compute final residuals and predicted velocities
+    # Compute max charge for fill ratio
+    max_charge = load_data["charge_grains"].max()
+
     # Apply fitted physics parameters to config
     predicted_velocities: list[float] = []
     residuals: list[float] = []
@@ -404,11 +528,13 @@ def fit_vivacity_polynomial(
     )
     start_p = start_p_fit if start_p_fit is not None else config_base.start_pressure_psi
     h_base = h_base_fit if h_base_fit is not None else config_base.h_base
+    k_param = k_param_fit if k_param_fit is not None else config_base.k_param
 
     for idx_row, row in load_data.iterrows():
         # Update charge
         config = copy(config_base)
         config.charge_mass_gr = float(row["charge_grains"])
+        config.max_charge_gr = max_charge
 
         # Apply physics parameters
         if fit_temp_sensitivity or fit_covolume:
@@ -435,6 +561,8 @@ def fit_vivacity_polynomial(
             config.start_pressure_psi = start_p
         if fit_h_base and h_base is not None:
             config.h_base = h_base
+        if fit_k_param and k_param is not None:
+            config.k_param = k_param
 
         try:
             # Solve with overrides
@@ -481,6 +609,15 @@ def fit_vivacity_polynomial(
     # L2 regularization on coefficients (not Lambda_base)
     # penalty = regularization * (a_fit**2 + b_fit**2 + c_fit**2 + d_fit**2)  # Not used
 
+    # Convergence diagnostics
+    convergence_info = {
+        "success": opt_result.success,
+        "message": opt_result.message,
+        "nfev": getattr(opt_result, "nfev", None),  # Function evaluations
+        "nit": getattr(opt_result, "nit", None),  # Iterations
+        "fun_value": opt_result.fun if hasattr(opt_result, "fun") else None,
+    }
+
     # Build return dict
     result_dict = {
         "Lambda_base": Lambda_base_fit,
@@ -488,8 +625,7 @@ def fit_vivacity_polynomial(
         "rmse_velocity": rmse,
         "residuals": residuals,
         "predicted_velocities": predicted_velocities,
-        "success": opt_result.success,
-        "message": opt_result.message,
+        "convergence": convergence_info,
     }
 
     # Add physics parameters if fitted

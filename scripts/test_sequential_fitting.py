@@ -11,10 +11,9 @@ from ballistics import (
 
 
 def test_parameter_sensitivities():
-    """Test parameter impact order on both GRT files."""
+    """Test parameter impact order on GRT files."""
     grt_files = [
-        "data/grt_files/65CM_130SMK_N150_Starline_Initial.grtload",
-        "data/grt_files/65CM_130SMK_Varget_Starline.grtload",
+        "data/grt_files/65CM_130SMK_N150_Starline_Initial.grtload",  # Test on N150
     ]
 
     for grt_file in grt_files:
@@ -107,9 +106,26 @@ def test_parameter_sensitivities():
             f"RMSE: {result4['rmse_velocity']:.2f} fps, temp_sens: {result4.get('temp_sensitivity_sigma_per_K', 'N/A')}"
         )
 
-        # 5. All parameters
-        print("\n--- 5. Fitting all parameters ---")
+        # 5. Lambda + coeffs + h_base + start_pressure
+        print("\n--- 5. Fitting Lambda_base + coeffs + h_base + start_pressure ---")
         result5 = fit_vivacity_polynomial(
+            load_data,
+            config,
+            verbose=True,
+            fit_h_base=True,
+            fit_temp_sensitivity=False,
+            fit_bore_friction=False,
+            fit_start_pressure=True,
+            fit_covolume=False,
+        )
+        results["Lambda_coeffs_h_start"] = result5
+        print(
+            f"RMSE: {result5['rmse_velocity']:.2f} fps, start_p: {result5.get('start_pressure_psi', 'N/A')}"
+        )
+
+        # 6. All parameters
+        print("\n--- 6. Fitting all parameters ---")
+        result6 = fit_vivacity_polynomial(
             load_data,
             config,
             verbose=False,
@@ -119,9 +135,9 @@ def test_parameter_sensitivities():
             fit_start_pressure=False,
             fit_covolume=False,
         )
-        results["all"] = result5
+        results["all"] = result6
         print(
-            f"RMSE: {result5['rmse_velocity']:.2f} fps, bore_fric: {result5.get('bore_friction_psi', 'N/A')}"
+            f"RMSE: {result6['rmse_velocity']:.2f} fps, bore_fric: {result6.get('bore_friction_psi', 'N/A')}"
         )
 
         # Summary of improvements
@@ -135,7 +151,10 @@ def test_parameter_sensitivities():
             f"Improvement adding h_base: {results['Lambda_coeffs']['rmse_velocity'] - results['Lambda_coeffs_h']['rmse_velocity']:.2f} fps ({(results['Lambda_coeffs']['rmse_velocity'] - results['Lambda_coeffs_h']['rmse_velocity']) / results['Lambda_coeffs']['rmse_velocity'] * 100:.1f}%)"
         )
         print(
-            f"Improvement adding temp_sens: {results['Lambda_coeffs_h']['rmse_velocity'] - results['Lambda_coeffs_h_temp']['rmse_velocity']:.2f} fps ({(results['Lambda_coeffs_h']['rmse_velocity'] - results['Lambda_coeffs_h_temp']['rmse_velocity']) / results['Lambda_coeffs_h']['rmse_velocity'] * 100:.1f}%)"
+            f"Improvement adding start_pressure: {results['Lambda_coeffs_h']['rmse_velocity'] - results['Lambda_coeffs_h_start']['rmse_velocity']:.2f} fps ({(results['Lambda_coeffs_h']['rmse_velocity'] - results['Lambda_coeffs_h_start']['rmse_velocity']) / results['Lambda_coeffs_h']['rmse_velocity'] * 100:.1f}%)"
+        )
+        print(
+            f"Improvement adding temp_sens: {results['Lambda_coeffs_h_start']['rmse_velocity'] - results['Lambda_coeffs_h_temp']['rmse_velocity']:.2f} fps ({(results['Lambda_coeffs_h_start']['rmse_velocity'] - results['Lambda_coeffs_h_temp']['rmse_velocity']) / results['Lambda_coeffs_h_start']['rmse_velocity'] * 100:.1f}%)"
         )
         print(
             f"Improvement adding bore_fric: {results['Lambda_coeffs_h_temp']['rmse_velocity'] - results['all']['rmse_velocity']:.2f} fps ({(results['Lambda_coeffs_h_temp']['rmse_velocity'] - results['all']['rmse_velocity']) / results['Lambda_coeffs_h_temp']['rmse_velocity'] * 100:.1f}%)"

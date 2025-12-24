@@ -32,7 +32,7 @@ pip install -e .[cli]
 
 ### Development Environment
 ```bash
-pip install -e .[cli,dev]
+pip install -e .[dev]
 ```
 
 ## Dependency Rationale
@@ -83,16 +83,12 @@ Development dependencies are optional because:
 ## Known Issues
 
 ### Type Checking
-Current codebase has type checking errors that prevent mypy from passing:
-- None type handling in physics parameters
-- Optional field access without null checks
-- DataFrame/Series type inference issues
+Current codebase has some type checking warnings (non-blocking):
+- Physics parameter None handling (mostly resolved)
+- DataFrame/Series type inference in complex operations
+- Optional field access in solver modules
 
-These are functional issues but affect development workflow. Recommended fix:
-```bash
-# Temporarily disable mypy for physics modules
-# TODO: Fix type annotations for full mypy compliance
-```
+Status: Functional but not fully mypy compliant. Core functionality unaffected.
 
 ### Performance Notes
 - Dependencies are chosen for performance over minimalism

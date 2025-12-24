@@ -236,6 +236,9 @@ class BallisticsConfig:
     cartridge_overall_length_in: float  # COAL - measured from bolt face to bullet tip
     propellant: PropellantProperties
     bullet: BulletProperties
+    max_charge_gr: float | None = (
+        None  # Max charge in dataset for fill ratio calculation
+    )
     temperature_f: float = 70.0
     phi: float = 0.9  # Piezometric coefficient
     p_initial_psi: float | None = None  # If None, uses bullet.p_initial_psi
@@ -243,6 +246,9 @@ class BallisticsConfig:
     # Heat loss model selection and parameters
     heat_loss_model: str = "convective"  # "empirical" or "convective"
     h_base: float = 2000.0  # Base heat transfer coefficient (W/m²·K), range: 500-5000
+    k_param: float = (
+        0.0  # Charge-dependent heat loss correction, dimensionless, range: [0, 0.5]
+    )
     h_alpha: float = 0.8  # Pressure scaling exponent (literature: 0.7-0.85)
     h_beta: float = 0.3  # Temperature scaling exponent (literature: 0.25-0.35)
     h_gamma: float = 0.3  # Velocity scaling exponent (literature: 0.2-0.4)
@@ -264,6 +270,13 @@ class BallisticsConfig:
 
     # Shot-start pressure override (if None, uses bullet.start_pressure_psi)
     start_pressure_psi: float | None = None
+
+    # Primer energy boost (additional pressure from primer, psi)
+    p_primer_psi: float = 0.0
+
+    max_charge_gr: float | None = (
+        None  # Max charge in dataset for fill ratio calculation
+    )
 
     def __post_init__(self):
         """Validate configuration parameters."""

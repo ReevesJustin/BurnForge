@@ -62,6 +62,8 @@ References
 """
 
 import math
+import logging
+import time
 import numpy as np
 from scipy.integrate import solve_ivp
 
@@ -73,6 +75,8 @@ from ballistics.utils.utils import (
     G_ACCEL,
     calc_muzzle_energy,
 )
+
+logger = logging.getLogger(__name__)
 
 # Physical constants
 R_GAS_CONSTANT = 287.0  # J/(kg·K) for combustion gases (approximation)
@@ -116,6 +120,9 @@ def solve_ballistics(
             muzzle_burn_percentage (percent of propellant consumed at muzzle)
         If return_trace=True, also includes: t, Z, P, v, x (arrays)
     """
+    # Performance profiling
+    start_time = time.time()
+
     # Extract parameters
     m = config.bullet_mass_gr * GRAINS_TO_LB
     C = config.charge_mass_gr * GRAINS_TO_LB
@@ -164,7 +171,14 @@ def solve_ballistics(
     # Derived parameters
     Theta = 2.5 * (m * s) / (D * rho_p)
     Phi = config.phi
-    P_IN = config.p_initial_psi
+
+    # Calculate initial gas pressure from propellant ignition
+    P_gas_initial_psi = (C * F) / V_0 if V_0 > 0 else (config.p_initial_psi or 0.0)
+
+    # Apply primer energy boost and shot-start pressure threshold
+    P_IN = P_gas_initial_psi + config.p_primer_psi
+    if config.start_pressure_psi is not None:
+        P_IN = max(P_IN, config.start_pressure_psi)
 
     # New physics parameters (continued)
     bore_friction_psi = config.bore_friction_psi
@@ -183,6 +197,11 @@ def solve_ballistics(
     if use_convective:
         # Convective model parameters
         h_base = config.h_base
+        # Adjust for charge-dependent heat loss
+        fill_ratio = 1.0
+        if config.max_charge_gr is not None and config.max_charge_gr > 0:
+            fill_ratio = config.charge_mass_gr / config.max_charge_gr
+        h_base *= 1 + config.k_param * (1 - fill_ratio)
         h_alpha = config.h_alpha
         h_beta = config.h_beta
         h_gamma = config.h_gamma
@@ -519,16 +538,15 @@ def solve_ballistics(
 
     # Add trace if requested
     if return_trace:
-        results["t"] = sol.t
-        results["Z"] = sol.y[0, :]
-        results["v"] = sol.y[1, :]
-        results["x"] = sol.y[2, :]
-        # Compute pressure trace using helper function (ensures consistency)
-        P_trace = []
-        for i in range(len(sol.t)):
-            Z_i, v_i, x_i = sol.y[:, i]
-            P_i = compute_pressure(Z_i, v_i, x_i)
-            P_trace.append(P_i)
-        results["P"] = np.array(P_trace)
+        results["t"] = t
+        results["Z"] = Z
+        results["P"] = P
+        results["v"] = v
+        results["x"] = x
+
+    # Performance profiling
+    solve_time = time.time() - start_time
+    results["solve_time_s"] = solve_time
+    logger.debug(".3f")
 
     return results
