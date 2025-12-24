@@ -45,10 +45,29 @@ Reference these completed phases for implementation context:
 - **Unit Mismatches**: Imperial vs SI unit conversions are error-prone
 - **Database Corruption**: Always backup before schema changes
 
+## Available Agents
+
+The following specialized agents are available for different aspects of IB_Solver development:
+
+### Core Agents
+- **Code Review Agent** (`.opencode/agent/code-review.md`): Reviews code for physics accuracy, numerical stability, and best practices
+- **Testing & Validation Agent** (`.opencode/agent/testing-validation.md`): Ensures test coverage and validates physics models
+- **Documentation Agent** (`.opencode/agent/documentation.md`): Maintains comprehensive and accurate documentation
+- **Status Reporter Agent** (`.opencode/agent/status-reporter.md`): Automatically generates project status summaries
+
+### Research Agents
+- **Propellant Grain Researcher** (`.opencode/agent/propellant-researcher.md`): Researches smokeless propellant grain properties for database expansion
+
+### Agent Usage
+- Agents can be invoked via `/agent [name]` commands or triggered automatically
+- Each agent has specific triggers and output formats
+- Agents work together to maintain code quality and project documentation
+
 ## Quality Checks
 Before finalizing changes:
 1. Run full test suite: `pytest tests/ -v`
 2. Check mypy: `mypy src/ballistics`
 3. Validate physics: Run diagnostics on known test cases
-4. Update docs: Ensure README and docstrings reflect changes</content>
+4. Update docs: Ensure README and docstrings reflect changes
+5. Consider agent reviews: Use appropriate agents for specialized validation</content>
 <parameter name="filePath">AGENTS.md

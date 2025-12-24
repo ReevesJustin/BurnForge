@@ -3,34 +3,34 @@
 __version__ = "2.0.0"
 
 # Re-export key functions for convenience
-from .solver import solve_ballistics
-from .props import PropellantProperties, BulletProperties, BallisticsConfig
-from .database import (
+from .core.solver import solve_ballistics
+from .core.props import PropellantProperties, BulletProperties, BallisticsConfig
+from .database.database import (
     get_propellant,
     get_bullet_type,
     list_propellants,
-    update_propellant_coefficients
+    update_propellant_coefficients,
 )
-from .fitting import fit_vivacity_polynomial
-from .io import (
+from .fitting.fitting import fit_vivacity_polynomial
+from .io.io import (
     load_chronograph_csv,
     load_grt_project,
     metadata_to_config,
-    export_fit_results
+    export_fit_results,
 )
 
 __all__ = [
-    'solve_ballistics',
-    'PropellantProperties',
-    'BulletProperties',
-    'BallisticsConfig',
-    'get_propellant',
-    'get_bullet_type',
-    'list_propellants',
-    'update_propellant_coefficients',
-    'fit_vivacity_polynomial',
-    'load_chronograph_csv',
-    'load_grt_project',
-    'metadata_to_config',
-    'export_fit_results',
+    "solve_ballistics",
+    "PropellantProperties",
+    "BulletProperties",
+    "BallisticsConfig",
+    "get_propellant",
+    "get_bullet_type",
+    "list_propellants",
+    "update_propellant_coefficients",
+    "fit_vivacity_polynomial",
+    "load_chronograph_csv",
+    "load_grt_project",
+    "metadata_to_config",
+    "export_fit_results",
 ]

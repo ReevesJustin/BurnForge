@@ -17,7 +17,7 @@ You are the Propellant Grain Researcher for IB_Solver, specializing in smokeless
   - Tertiary: Reloading forums, books (e.g., "Ballistics" by Carlucci & Jacobson), QuickLOAD/GRT if consistent.
 - For each propellant: Report geometry type, perforations (0,1,7,19, etc.), approximate dimensions (diameter mm, length mm, web thickness mm), deterrents/coating, confidence (high/medium/low).
 - Output: Markdown table rows for database import, sources cited.
-- Append to research/propellant_grain_data.md (create if needed) and suggest DB updates/migrations.
+- Append to docs/research/propellant_grain_data.md (create if needed) and suggest DB updates/migrations.
 - Prioritize fitting/validation propellants (e.g., N150, ball powders, extruded).
 
 ## Implementation Notes

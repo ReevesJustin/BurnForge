@@ -9,9 +9,9 @@ from scipy.optimize import minimize
 import pandas as pd
 from copy import deepcopy as copy
 
-from .solver import solve_ballistics
-from .burn_rate import validate_vivacity_positive
-from .props import BallisticsConfig
+from ballistics.core.solver import solve_ballistics
+from ballistics.core.burn_rate import validate_vivacity_positive
+from ballistics.core.props import BallisticsConfig
 
 
 def fit_vivacity_polynomial(
@@ -96,22 +96,32 @@ def fit_vivacity_polynomial(
                 a_init, b_init, c_init, d_init = 1.0, -1.0, 0.0, 0.0
             initial_guess = [Lambda_base_init, a_init, b_init, c_init, d_init]
 
-        # Add physics parameters if requested
+        # Add physics parameters if requested (ensure no None values)
         if fit_temp_sensitivity:
-            initial_guess.append(config_base.propellant.temp_sensitivity_sigma_per_K)
-            param_names.append("temp_sens")
+            temp_sens_val = config_base.propellant.temp_sensitivity_sigma_per_K
+            if temp_sens_val is not None:
+                initial_guess.append(temp_sens_val)
+                param_names.append("temp_sens")
         if fit_bore_friction:
-            initial_guess.append(config_base.bore_friction_psi)
-            param_names.append("bore_fric")
+            bore_fric_val = config_base.bore_friction_psi
+            if bore_fric_val is not None:
+                initial_guess.append(bore_fric_val)
+                param_names.append("bore_fric")
         if fit_start_pressure:
-            initial_guess.append(config_base.start_pressure_psi)
-            param_names.append("start_p")
+            start_p_val = config_base.start_pressure_psi
+            if start_p_val is not None:
+                initial_guess.append(start_p_val)
+                param_names.append("start_p")
         if fit_covolume:
-            initial_guess.append(config_base.propellant.covolume_m3_per_kg)
-            param_names.append("covolume")
+            covolume_val = config_base.propellant.covolume_m3_per_kg
+            if covolume_val is not None:
+                initial_guess.append(covolume_val)
+                param_names.append("covolume")
         if fit_h_base:
-            initial_guess.append(config_base.h_base)  # type: ignore
-            param_names.append("h_base")
+            h_base_val = config_base.h_base
+            if h_base_val is not None:
+                initial_guess.append(h_base_val)
+                param_names.append("h_base")
 
         initial_guess = tuple(initial_guess)
 
@@ -374,8 +384,8 @@ def fit_vivacity_polynomial(
 
     # Compute final residuals and predicted velocities
     # Apply fitted physics parameters to config
-    predicted_velocities = []
-    residuals = []
+    predicted_velocities: list[float] = []
+    residuals: list[float] = []
     weights: list[float] = []
 
     # Set fitted physics parameters (use fitted if available, else config defaults)
@@ -398,11 +408,11 @@ def fit_vivacity_polynomial(
     for idx_row, row in load_data.iterrows():
         # Update charge
         config = copy(config_base)
-        config.charge_mass_gr = row["charge_grains"]
+        config.charge_mass_gr = float(row["charge_grains"])
 
         # Apply physics parameters
         if fit_temp_sensitivity or fit_covolume:
-            from .props import PropellantProperties
+            from ballistics.core.props import PropellantProperties
 
             prop_updated = PropellantProperties(
                 name=config.propellant.name,
@@ -419,12 +429,12 @@ def fit_vivacity_polynomial(
             )
             config.propellant = prop_updated
 
-        if fit_bore_friction:
+        if fit_bore_friction and bore_fric is not None:
             config.bore_friction_psi = bore_fric
-        if fit_start_pressure:
+        if fit_start_pressure and start_p is not None:
             config.start_pressure_psi = start_p
-        if fit_h_base:
-            config.h_base = h_base_fit
+        if fit_h_base and h_base is not None:
+            config.h_base = h_base
 
         try:
             # Solve with overrides
@@ -434,31 +444,39 @@ def fit_vivacity_polynomial(
 
             # Compute weighted residual
             v_pred = solve_result["muzzle_velocity_fps"]
-            v_obs = row["mean_velocity_fps"]
+            v_obs = float(row["mean_velocity_fps"])
             residual = v_pred - v_obs
 
             # Weight by inverse variance if available
-            if "velocity_sd" in row and row["velocity_sd"] > 0:
-                weight = 1.0 / (row["velocity_sd"] ** 2)
-            else:
+            try:
+                sd_val = row.get("velocity_sd", 0)
+                if sd_val is not None and float(sd_val) > 0:
+                    weight = 1.0 / (float(sd_val) ** 2)
+                else:
+                    weight = 1.0
+            except (ValueError, TypeError, KeyError):
                 weight = 1.0
 
-            predicted_velocities.append(v_pred)
-            residuals.append(residual)
-            weights.append(weight)
-
         except (ValueError, RuntimeError):
-            # If solver fails, return large penalty
-            return 1e10
+            # If solver fails, use large penalty for this data point
+            v_pred = 1e10  # Large penalty
+            v_obs = float(row["mean_velocity_fps"])
+            residual = v_pred - v_obs
+            weight = 1.0
 
-    residuals = np.array(residuals)
-    weights = np.array(weights)
+        predicted_velocities.append(v_pred)
+        residuals.append(residual)
+        weights.append(weight)
+
+    residuals_array = np.array(residuals)
+    weights_array = np.array(weights)
 
     # Normalize weights
-    weights = weights / np.sum(weights) * len(weights)
+    if np.sum(weights_array) > 0:
+        weights_array = weights_array / np.sum(weights_array) * len(weights_array)
 
     # Weighted RMSE
-    rmse = np.sqrt(np.mean(residuals**2 * weights))
+    rmse = float(np.sqrt(np.mean(residuals_array**2 * weights_array)))
 
     # L2 regularization on coefficients (not Lambda_base)
     # penalty = regularization * (a_fit**2 + b_fit**2 + c_fit**2 + d_fit**2)  # Not used
@@ -468,7 +486,7 @@ def fit_vivacity_polynomial(
         "Lambda_base": Lambda_base_fit,
         "coeffs": coeffs_fit,
         "rmse_velocity": rmse,
-        "residuals": residuals.tolist(),
+        "residuals": residuals,
         "predicted_velocities": predicted_velocities,
         "success": opt_result.success,
         "message": opt_result.message,

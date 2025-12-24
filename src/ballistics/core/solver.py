@@ -65,9 +65,14 @@ import math
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from .props import BallisticsConfig
-from .burn_rate import calc_vivacity
-from .utils import GRAINS_TO_LB, GRAINS_H2O_TO_IN3, G_ACCEL, calc_muzzle_energy
+from ballistics.core.props import BallisticsConfig
+from ballistics.core.burn_rate import calc_vivacity
+from ballistics.utils.utils import (
+    GRAINS_TO_LB,
+    GRAINS_H2O_TO_IN3,
+    G_ACCEL,
+    calc_muzzle_energy,
+)
 
 # Physical constants
 R_GAS_CONSTANT = 287.0  # J/(kg·K) for combustion gases (approximation)
@@ -175,15 +180,15 @@ def solve_ballistics(
     use_convective = config.heat_loss_model == "convective"
 
     if use_convective:
-        # Convective model parameters
-        h_base = config.h_base
-        h_alpha = config.h_alpha
-        h_beta = config.h_beta
-        h_gamma = config.h_gamma
-        T_wall = config.T_wall_K
-        P_ref = config.P_ref_psi
-        T_ref = config.T_ref_K
-        v_ref = config.v_ref_in_s
+        # Convective model parameters (ensure no None values)
+        h_base = config.h_base if config.h_base is not None else 2000.0
+        h_alpha = config.h_alpha if config.h_alpha is not None else 0.8
+        h_beta = config.h_beta if config.h_beta is not None else 0.3
+        h_gamma = config.h_gamma if config.h_gamma is not None else 0.3
+        T_wall = config.T_wall_K if config.T_wall_K is not None else 500.0
+        P_ref = config.P_ref_psi if config.P_ref_psi is not None else 10000.0
+        T_ref = config.T_ref_K if config.T_ref_K is not None else 2500.0
+        v_ref = config.v_ref_in_s if config.v_ref_in_s is not None else 1200.0
         bore_circumference = math.pi * D
         h_base_imperial = h_base * JOULES_TO_FT_LBF / (IN_TO_M**2 * 144)
     else:
