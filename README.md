@@ -2,7 +2,7 @@
 
 **Modular Python package for scientific internal ballistics modeling with advanced propellant characterization capabilities.**
 
-> ⚠️ **IMPORTANT**: If you're using a database from before 2024-12-24, propellant force values need correction. See `docs/DATABASE_FIX_GUIDE.md` for details.
+> ⚠️ **IMPORTANT**: If you're using a database from before 2024-12-24, see [BUGFIX.md](docs/BUGFIX.md) for critical fixes.
 >
 > ✅ **STATUS**: Production ready! RMSE 4-8 fps on validation datasets (2024-12-24)
 
@@ -13,10 +13,17 @@ IB_Solver provides professional-grade tools for characterizing propellant burn b
 ## 📚 Documentation
 
 **Complete documentation available in [`docs/`](docs/) folder:**
-- **[docs/README.md](docs/README.md)** - Documentation index and navigation guide
-- **[docs/DATABASE_FIX_COMPLETE.md](docs/DATABASE_FIX_COMPLETE.md)** - Recent critical fix results ⭐
-- **[docs/WORKFLOW.md](docs/WORKFLOW.md)** - Standard workflows and CLI usage
-- **[docs/troubleshooting.md](docs/troubleshooting.md)** - Common issues and solutions
+
+### 🔥 **Start Here**
+- **[PROJECT_GOALS.md](docs/PROJECT_GOALS.md)** - Project vision, objectives, and technical approach
+- **[WORKFLOW.md](docs/WORKFLOW.md)** - Standard workflows for fitting and analysis
+
+### 🚨 **Critical Issues & Fixes**
+- **[docs/BUGFIX.md](docs/BUGFIX.md)** - ⭐ Complete bug fixes and critical issues (database, code bugs, validation)
+- **[troubleshooting.md](docs/troubleshooting.md)** - Common issues and solutions
+
+### 🛠️ **Development**
+- **[DEPENDENCIES.md](docs/DEPENDENCIES.md)** - Required packages and installation
 
 ## Key Features
 
@@ -257,7 +264,7 @@ export BALLISTICS_DB_PATH=/path/to/custom/database.db
 - **Database**: Full relational schema with integrity validation (19 tests)
 - **Accuracy**: ✅ **4-8 fps RMSE** on validation datasets (exceeds <50 fps target by 6x)
 - **Solver Stability**: 100% success rate on test datasets
-- **Test Coverage**: 90% (44/49 tests passing)
+- **Test Coverage**: 96% (47/49 tests passing)
 - **Memory**: ~2MB per simulation
 
 ### Validated Performance (2024-12-24)
@@ -278,10 +285,10 @@ export BALLISTICS_DB_PATH=/path/to/custom/database.db
 - ✅ **CRITICAL**: Fixed database propellant force values (were 5x too high)
   - Before: RMSE ~3,200 fps (completely broken)
   - After: RMSE 4-8 fps (production ready) ✅
-  - See `docs/DATABASE_FIX_COMPLETE.md` for details
+  - See `docs/BUGFIX.md` for details
 - ✅ **Database Integrity**: Added 19 validation tests to prevent future regressions
 - ✅ **Bug Fixes**: Fixed solver trace output, fitting indentation, CLI output
-- ✅ **Test Coverage**: Improved from 63% to 90% (44/49 tests passing)
+- ✅ **Test Coverage**: Improved from 63% to 90% (47/49 tests passing)
 - ✅ **Documentation**: Comprehensive guides in `docs/` folder
 
 ### v2.0.0 (Earlier)

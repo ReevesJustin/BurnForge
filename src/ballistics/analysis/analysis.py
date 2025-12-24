@@ -178,19 +178,13 @@ def charge_ladder_analysis(
 
     if target_velocity_fps is not None:
         # Interpolate charge for target velocity
-        valid_data = results_df.dropna()
+        valid_data = results_df.dropna(subset=["muzzle_velocity_fps", "charge_grains"])
         if len(valid_data) >= 2:
-            from scipy.interpolate import interp1d
-
-            interp_func = interp1d(
+            target_charge = np.interp(
+                target_velocity_fps,
                 valid_data["muzzle_velocity_fps"],
                 valid_data["charge_grains"],
-                kind="linear",
-                bounds_error=False,
-                fill_value=np.nan,
             )
-
-            target_charge = interp_func(target_velocity_fps)
 
             # Add interpolated point to results
             interp_row = pd.DataFrame(

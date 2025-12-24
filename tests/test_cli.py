@@ -28,7 +28,11 @@ class TestCLI:
             ),
         )
         mock_config.return_value = Mock()
-        mock_fit.return_value = {"rmse_velocity": 25.0, "Lambda_base": 0.05}
+        mock_fit.return_value = {
+            "rmse_velocity": 25.0,
+            "Lambda_base": 0.05,
+            "coeffs": [0.1, 0.2, 0.3],
+        }
 
         result = self.runner.invoke(app, ["fit", "test.grtload"])
 
@@ -46,12 +50,13 @@ class TestCLI:
         mock_solve.return_value = {
             "muzzle_velocity_fps": 2550.0,
             "peak_pressure_psi": 50000.0,
+            "final_Z": 0.8,
         }
 
         result = self.runner.invoke(app, ["simulate", "test.grtload"])
 
         assert result.exit_code == 0
-        assert "2550.0 fps" in result.output
+        assert "2550 fps" in result.output
         mock_solve.assert_called_once()
 
     @patch("ballistics.cli.main.burnout_scan_charge")

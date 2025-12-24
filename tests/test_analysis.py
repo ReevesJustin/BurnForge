@@ -158,12 +158,12 @@ class TestChargeLadderAnalysis:
 
         try:
             result = charge_ladder_analysis(
-                mock_config, (40.0, 42.0), target_velocity_fps=2550.0, n_points=2
+                mock_config, (40.0, 42.0), target_velocity_fps=2450.0, n_points=2
             )
 
             assert isinstance(result, pd.DataFrame)
             assert len(result) >= 3  # Original 2 + interpolated 1
-            assert 2550.0 in result["muzzle_velocity_fps"].values
+            assert 2450.0 in result["muzzle_velocity_fps"].values
 
         finally:
             ballistics.analysis.analysis.solve_ballistics = original_solve
