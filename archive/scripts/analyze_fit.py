@@ -8,8 +8,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 import numpy as np
 import matplotlib.pyplot as plt
 from ballistics import load_grt_project, metadata_to_config, fit_vivacity_polynomial
-from ballistics.solver import solve_ballistics
-from ballistics.burn_rate import calc_vivacity, form_function
+from ballistics import solve_ballistics
+from ballistics.core.burn_rate import calc_vivacity, form_function
 
 # Load GRT file
 grt_file = (

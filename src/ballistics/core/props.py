@@ -68,9 +68,9 @@ class PropellantProperties:
         PropellantProperties
             Propellant properties loaded from database
         """
-        from . import database
+        from ..database.database import get_propellant
 
-        props = database.get_propellant(name, db_path)
+        props = get_propellant(name, db_path)
 
         # Compute gamma from base
         gamma = 1.24 if props["base"] == "S" else 1.22
@@ -159,9 +159,9 @@ class BulletProperties:
         BulletProperties
             Bullet properties loaded from database
         """
-        from . import database
+        from ..database.database import get_bullet_type
 
-        props = database.get_bullet_type(name, db_path)
+        props = get_bullet_type(name, db_path)
 
         # Set initial pressure based on bullet type
         # Copper jacketed bullets: 3626 psi (250 bar)

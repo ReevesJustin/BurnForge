@@ -4,6 +4,7 @@ import json
 import xml.etree.ElementTree as ET
 from io import StringIO
 import pandas as pd
+from typing import cast
 
 from ..core.props import BallisticsConfig, PropellantProperties, BulletProperties
 from ..database.database import list_propellants
@@ -15,6 +16,7 @@ from ..utils.utils import (
     MS_TO_FPS,
     BAR_TO_PSI,
 )
+from ..database.database import insert_firearm, insert_bullet, insert_test_session
 
 
 def load_chronograph_csv(filepath: str) -> tuple[dict, pd.DataFrame]:
@@ -49,7 +51,13 @@ def load_chronograph_csv(filepath: str) -> tuple[dict, pd.DataFrame]:
     metadata = parse_metadata(metadata)
 
     # Load data
-    load_data = pd.read_csv(StringIO("".join(data_lines)))
+    if not data_lines:
+        load_data = pd.DataFrame(
+            data=[],
+            columns=["charge_grains", "mean_velocity_fps", "velocity_sd", "notes"],
+        )  # type: ignore
+    else:
+        load_data = pd.read_csv(StringIO("".join(data_lines)))
 
     # Validate required columns
     required_cols = ["charge_grains", "mean_velocity_fps"]
@@ -58,10 +66,11 @@ def load_chronograph_csv(filepath: str) -> tuple[dict, pd.DataFrame]:
             raise ValueError(f"Missing required column in CSV: {col}")
 
     # Validate data
-    if load_data["charge_grains"].min() <= 0:
-        raise ValueError("All charge_grains values must be positive")
-    if load_data["mean_velocity_fps"].min() <= 0:
-        raise ValueError("All mean_velocity_fps values must be positive")
+    if len(load_data) > 0:
+        if load_data["charge_grains"].min() <= 0:
+            raise ValueError("All charge_grains values must be positive")
+        if load_data["mean_velocity_fps"].min() <= 0:
+            raise ValueError("All mean_velocity_fps values must be positive")
 
     return metadata, load_data
 
@@ -89,9 +98,17 @@ def parse_metadata(metadata_raw: dict) -> dict:
         "Bullet Jacket Type",
     ]
 
+    def _safe_float(value: str, default: float) -> float:
+        if not value.strip():
+            return default
+        try:
+            return float(value)
+        except ValueError:
+            return default
+
     for field in required_fields:
-        if field not in metadata_raw:
-            raise ValueError(f"Missing required metadata field: {field}")
+        if field not in metadata_raw or not metadata_raw[field].strip():
+            raise ValueError(f"Missing or empty required metadata field: {field}")
 
     # Extract and convert values
     metadata = {
@@ -104,9 +121,13 @@ def parse_metadata(metadata_raw: dict) -> dict:
         "case_volume_gr_h2o": float(metadata_raw["Effective Case Volume (gr H2O)"]),
         "propellant_name": metadata_raw["Propellant"],
         "bullet_jacket_type": metadata_raw["Bullet Jacket Type"],
-        "temperature_f": float(metadata_raw.get("Temperature (°F)", 70.0)),
-        "p_initial_psi": float(metadata_raw.get("Initial Pressure (psi)", 5000.0)),
-        "caliber_in": float(metadata_raw.get("Caliber (in)", 0.308)),  # Optional
+        "temperature_f": _safe_float(
+            metadata_raw.get("Temperature (°F)", "70.0"), 70.0
+        ),
+        "p_initial_psi": _safe_float(
+            metadata_raw.get("Initial Pressure (psi)", "5000.0"), 5000.0
+        ),
+        "caliber_in": _safe_float(metadata_raw.get("Caliber (in)", "0.308"), 0.308),
     }
 
     return metadata
@@ -259,35 +280,45 @@ def load_grt_project(filepath: str) -> tuple[dict, pd.DataFrame]:
             if required:
                 raise ValueError(f"Required field '{name}' not found in GRT file")
             return default
-        return elem.get("value")
+        value = elem.get("value")
+        if value is None:
+            if required:
+                raise ValueError(f"Required field '{name}' has no value in GRT file")
+            return default
+        return value
 
     # Barrel length (xe in mm)
-    barrel_length_mm = float(get_input_value("xe"))
-    barrel_length_in = barrel_length_mm * MM_TO_IN
+    xe_value = get_input_value("xe")
+    barrel_length_mm = float(xe_value) if xe_value is not None else 0.0
+    barrel_length_in = barrel_length_mm * MM_TO_IN if barrel_length_mm > 0 else None
 
     # COAL (oal in mm)
-    coal_mm = float(get_input_value("oal"))
-    coal_in = coal_mm * MM_TO_IN
+    oal_value = get_input_value("oal")
+    coal_mm = float(oal_value) if oal_value is not None else 0.0
+    coal_in = coal_mm * MM_TO_IN if coal_mm > 0 else None
 
     # Case volume (casevol in cm³)
-    casevol_cm3 = float(get_input_value("casevol"))
-    casevol_gr_h2o = casevol_cm3 * CM3_TO_GRAINS_H2O
+    casevol_value = get_input_value("casevol")
+    casevol_cm3 = float(casevol_value) if casevol_value is not None else 0.0
+    casevol_gr_h2o = casevol_cm3 * CM3_TO_GRAINS_H2O if casevol_cm3 > 0 else None
 
     # Bullet mass (mp in grams)
-    bullet_mass_g = float(get_input_value("mp"))
-    bullet_mass_gr = bullet_mass_g * GRAMS_TO_GRAINS
+    mp_value = get_input_value("mp")
+    bullet_mass_g = float(mp_value) if mp_value is not None else 0.0
+    bullet_mass_gr = bullet_mass_g * GRAMS_TO_GRAINS if bullet_mass_g > 0 else None
 
     # Caliber diameter (Dz in mm)
-    caliber_mm = float(get_input_value("Dz"))
-    caliber_in = caliber_mm * MM_TO_IN
+    Dz_value = get_input_value("Dz")
+    caliber_mm = float(Dz_value) if Dz_value is not None else 0.0
+    caliber_in = caliber_mm * MM_TO_IN if caliber_mm > 0 else None
 
     # Initial pressure (ps in bar)
     ps_value = get_input_value("ps", required=False, default="250")
-    p_initial_psi = float(ps_value) * BAR_TO_PSI
+    p_initial_psi = float(ps_value or "250") * BAR_TO_PSI if ps_value else None
 
     # Temperature (pt in Celsius)
     pt_value = get_input_value("pt", required=False, default="21")
-    temperature_f = float(pt_value) * 9.0 / 5.0 + 32.0
+    temperature_f = float(pt_value or "21") * 9.0 / 5.0 + 32.0 if pt_value else None
 
     # Propellant name (pname under propellant element)
     import urllib.parse
@@ -296,7 +327,10 @@ def load_grt_project(filepath: str) -> tuple[dict, pd.DataFrame]:
     if propellant_elem is not None:
         pname_elem = propellant_elem.find(".//input[@name='pname']")
         if pname_elem is not None:
-            propellant_name_full = urllib.parse.unquote(pname_elem.get("value"))
+            pname_value = pname_elem.get("value")
+            propellant_name_full = (
+                urllib.parse.unquote(pname_value) if pname_value else "Unknown"
+            )
             propellant_name = _map_grt_propellant_name(propellant_name_full)
         else:
             propellant_name = "Unknown"
@@ -304,21 +338,23 @@ def load_grt_project(filepath: str) -> tuple[dict, pd.DataFrame]:
         propellant_name = "Unknown"
 
     # Cartridge name (CaliberName)
-    cartridge_name = get_input_value("CaliberName", required=False, default="Unknown")
-    cartridge_name = urllib.parse.unquote(cartridge_name)
+    cartridge_name_value = get_input_value(
+        "CaliberName", required=False, default="Unknown"
+    )
+    cartridge_name = urllib.parse.unquote(cartridge_name_value or "Unknown")
 
     # Build metadata
     metadata = {
         "cartridge": cartridge_name,
-        "barrel_length_in": barrel_length_in,
-        "cartridge_overall_length_in": coal_in,
-        "bullet_mass_gr": bullet_mass_gr,
-        "case_volume_gr_h2o": casevol_gr_h2o,
+        "barrel_length_in": barrel_length_in if barrel_length_in is not None else 0.0,
+        "cartridge_overall_length_in": coal_in if coal_in is not None else 0.0,
+        "bullet_mass_gr": bullet_mass_gr if bullet_mass_gr is not None else 0.0,
+        "case_volume_gr_h2o": casevol_gr_h2o if casevol_gr_h2o is not None else 0.0,
         "propellant_name": propellant_name,
         "bullet_jacket_type": "Copper Jacket over Lead",  # Assume default
-        "p_initial_psi": p_initial_psi,
-        "temperature_f": temperature_f,
-        "caliber_in": caliber_in,
+        "p_initial_psi": p_initial_psi if p_initial_psi is not None else 5000.0,
+        "temperature_f": temperature_f if temperature_f is not None else 70.0,
+        "caliber_in": caliber_in if caliber_in is not None else 0.308,
     }
 
     # Extract measurement charges
@@ -430,8 +466,9 @@ def _extract_grt_measurements(root_elem) -> pd.DataFrame:
         )
 
     if len(measurements) == 0:
-        return pd.DataFrame(
-            columns=["charge_grains", "mean_velocity_fps", "velocity_sd", "notes"]
+        return pd.DataFrame(  # type: ignore
+            data=[],
+            columns=["charge_grains", "mean_velocity_fps", "velocity_sd", "notes"],
         )
 
     df = pd.DataFrame(measurements)
@@ -439,4 +476,157 @@ def _extract_grt_measurements(root_elem) -> pd.DataFrame:
     # Sort by charge weight
     df = df.sort_values("charge_grains").reset_index(drop=True)
 
-    return df[["charge_grains", "mean_velocity_fps", "velocity_sd", "notes"]]
+    return cast(
+        pd.DataFrame, df[["charge_grains", "mean_velocity_fps", "velocity_sd", "notes"]]
+    )
+
+
+def load_json_data(
+    filepath: str, units: str = "imperial", db_path: str | None = None
+) -> tuple[dict, pd.DataFrame]:
+    """Load chronograph data from JSON file with unit conversion support.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to JSON file following the manual entry template
+    units : str
+        Input units: 'imperial' or 'metric'. Default 'imperial'
+    db_path : str, optional
+        Database path for validation
+
+    Returns
+    -------
+    tuple
+        (metadata: dict in imperial units, load_data: pd.DataFrame)
+    """
+    with open(filepath, "r") as f:
+        data = json.load(f)
+
+    metadata_raw = data["metadata"]
+    load_data_raw = data["load_data"]
+
+    # Unit conversion if metric
+    if units == "metric":
+        metadata = _convert_metadata_to_imperial(metadata_raw)
+    else:
+        metadata = metadata_raw.copy()
+
+    # Convert load_data to DataFrame
+    load_data = pd.DataFrame(load_data_raw)
+
+    # Validate
+    required_meta = [
+        "barrel_length_in",
+        "cartridge_overall_length_in",
+        "bullet_mass_gr",
+        "case_volume_gr_h2o",
+        "propellant_name",
+        "bullet_jacket_type",
+        "temperature_f",
+        "caliber_in",
+    ]
+    for field in required_meta:
+        if field not in metadata:
+            raise ValueError(f"Missing required metadata field: {field}")
+
+    required_cols = ["charge_grains", "mean_velocity_fps"]
+    for col in required_cols:
+        if col not in load_data.columns:
+            raise ValueError(f"Missing required column in load_data: {col}")
+
+    return metadata, load_data
+
+
+def _convert_metadata_to_imperial(metadata: dict) -> dict:
+    """Convert metric metadata to imperial units."""
+    converted = metadata.copy()
+
+    # Lengths: mm to in
+    if "barrel_length_mm" in metadata:
+        converted["barrel_length_in"] = metadata["barrel_length_mm"] * MM_TO_IN
+    if "cartridge_overall_length_mm" in metadata:
+        converted["cartridge_overall_length_in"] = (
+            metadata["cartridge_overall_length_mm"] * MM_TO_IN
+        )
+    if "caliber_mm" in metadata:
+        converted["caliber_in"] = metadata["caliber_mm"] * MM_TO_IN
+
+    # Mass: g to gr
+    if "bullet_mass_g" in metadata:
+        converted["bullet_mass_gr"] = metadata["bullet_mass_g"] * GRAMS_TO_GRAINS
+
+    # Volume: cm³ to gr H2O
+    if "case_volume_cm3" in metadata:
+        converted["case_volume_gr_h2o"] = (
+            metadata["case_volume_cm3"] * CM3_TO_GRAINS_H2O
+        )
+
+    # Temperature: C to F
+    if "temperature_c" in metadata:
+        converted["temperature_f"] = metadata["temperature_c"] * 9.0 / 5.0 + 32.0
+
+    # Velocity: m/s to fps
+    if "load_data" in metadata:
+        for charge in converted["load_data"]:
+            if "mean_velocity_ms" in charge:
+                charge["mean_velocity_fps"] = charge["mean_velocity_ms"] * MS_TO_FPS
+
+    return converted
+
+
+def load_grt_project_with_db(
+    filepath: str, db_path: str | None = None
+) -> tuple[dict, pd.DataFrame, int]:
+    """Load GRT project and insert firearm, bullet, session into database.
+
+    Returns metadata, load_data, and session_id.
+    """
+    metadata, load_data = load_grt_project(filepath)
+
+    # Extract additional details from GRT
+    firearm_info = _extract_grt_firearm_info(filepath)
+    bullet_info = _extract_grt_bullet_info(filepath)
+
+    # Insert into DB
+    firearm_id = insert_firearm(
+        manufacturer=firearm_info.get("manufacturer", "Unknown"),
+        model=firearm_info.get("model", "Unknown"),
+        barrel_length_in=metadata["barrel_length_in"],
+        caliber_in=metadata["caliber_in"],
+        db_path=db_path,
+    )
+
+    bullet_id = insert_bullet(
+        manufacturer=bullet_info.get("manufacturer", "Unknown"),
+        model=bullet_info.get("model", "Unknown"),
+        weight_gr=metadata["bullet_mass_gr"],
+        caliber_in=metadata["caliber_in"],
+        jacket_type=metadata["bullet_jacket_type"],
+        db_path=db_path,
+    )
+
+    session_id = insert_test_session(
+        firearm_id=firearm_id,
+        bullet_id=bullet_id,
+        propellant_name=metadata["propellant_name"],
+        temperature_f=metadata["temperature_f"],
+        cartridge_overall_length_in=metadata["cartridge_overall_length_in"],
+        case_volume_gr_h2o=metadata["case_volume_gr_h2o"],
+        grt_filename=filepath.split("/")[-1],
+        db_path=db_path,
+    )
+
+    return metadata, load_data, session_id
+
+
+def _extract_grt_firearm_info(filepath: str) -> dict:
+    """Extract firearm details from GRT file."""
+    # Placeholder - in real GRT, might have more info
+    return {"manufacturer": "Unknown", "model": "Unknown"}
+
+
+def _extract_grt_bullet_info(filepath: str) -> dict:
+    """Extract bullet details from GRT file."""
+    # Placeholder
+    return {"manufacturer": "Unknown", "model": "Unknown"}

@@ -11,7 +11,7 @@ from .database.database import (
     list_propellants,
     update_propellant_coefficients,
 )
-from .fitting.fitting import fit_vivacity_polynomial
+from .fitting.fitting import fit_vivacity_polynomial, fit_vivacity_sequential
 from .io.io import (
     load_chronograph_csv,
     load_grt_project,
@@ -29,6 +29,7 @@ __all__ = [
     "list_propellants",
     "update_propellant_coefficients",
     "fit_vivacity_polynomial",
+    "fit_vivacity_sequential",
     "load_chronograph_csv",
     "load_grt_project",
     "metadata_to_config",

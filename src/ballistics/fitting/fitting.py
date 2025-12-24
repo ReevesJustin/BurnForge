@@ -196,7 +196,7 @@ def fit_vivacity_polynomial(
             params[idx] if fit_covolume else config_base.propellant.covolume_m3_per_kg
         )
         idx += 1 if fit_covolume else 0
-        h_base_fit = params[idx] if fit_h_base else config_base.h_base
+        h_base = params[idx] if fit_h_base else config_base.h_base
 
         # Check vivacity positivity constraint
         T_prop_K = config_base.temperature_f * 5 / 9 + 255.372  # Convert to Kelvin
@@ -510,6 +510,140 @@ def fit_vivacity_polynomial(
     return result_dict
 
 
+def fit_vivacity_sequential(
+    load_data: pd.DataFrame,
+    config_base: BallisticsConfig,
+    initial_guess: tuple[float, ...] | list[float] | None = None,
+    bounds: tuple[tuple[float, ...], tuple[float, ...]] | None = None,
+    regularization: float = 0.0,
+    method: str = "L-BFGS-B",
+    verbose: bool = True,
+) -> dict:
+    """Fit vivacity parameters sequentially: first vivacity polynomial, then h_base.
+
+    This implements a two-stage fitting process:
+    1. Fit Lambda_base and polynomial coefficients (a,b,c,d) with advanced physics disabled
+    2. Fix those parameters and fit h_base (heat transfer coefficient)
+
+    Parameters
+    ----------
+    load_data : pd.DataFrame
+        Columns: charge_grains, mean_velocity_fps, velocity_sd (optional)
+    config_base : BallisticsConfig
+        Base configuration (charge_mass_gr will be overridden per row)
+    initial_guess : tuple, optional
+        Initial guess for (Lambda_base, a, b, c, d, h_base)
+        Defaults to database values + (1, -1, 0, 0, config.h_base)
+    bounds : tuple, optional
+        ((Lambda_min, a_min, ..., h_base_min), (Lambda_max, a_max, ..., h_base_max))
+        Default bounds applied
+    regularization : float
+        L2 penalty on coefficients (default 0.0)
+    method : str
+        Optimization method ('L-BFGS-B', 'trust-constr')
+    verbose : bool
+        Print iteration progress
+
+    Returns
+    -------
+    dict
+        Keys: Lambda_base, coeffs, h_base, rmse_velocity, residuals, predicted_velocities,
+        success, message, stage1_result, stage2_result
+    """
+    # Stage 1: Fit vivacity polynomial only
+    if verbose:
+        print("Stage 1: Fitting vivacity polynomial (Lambda_base, a, b, c, d)...")
+    stage1_bounds = (bounds[0][:5], bounds[1][:5]) if bounds else None
+    stage1_result = fit_vivacity_polynomial(
+        load_data=load_data,
+        config_base=config_base,
+        initial_guess=initial_guess[:5] if initial_guess else None,
+        bounds=stage1_bounds,
+        regularization=regularization,
+        method=method,
+        verbose=verbose,
+        fit_h_base=False,
+    )
+
+    # Extract fitted vivacity parameters
+    fitted_lambda = stage1_result["Lambda_base"]
+    fitted_coeffs = stage1_result["coeffs"]
+
+    # Stage 2: Fit h_base with vivacity parameters fixed
+    if verbose:
+        print("Stage 2: Fitting h_base with vivacity parameters fixed...")
+
+    # Create initial guess for stage 2: fitted vivacity + initial h_base
+    h_base_initial = config_base.h_base if config_base.h_base else 1000.0
+    stage2_initial = [
+        fitted_lambda,
+        fitted_coeffs[0],
+        fitted_coeffs[1],
+        fitted_coeffs[2],
+        fitted_coeffs[3],
+        h_base_initial,
+    ]
+
+    # Bounds for stage 2: tight bounds around fitted vivacity, normal for h_base
+    if bounds:
+        stage2_bounds_lower = (
+            fitted_lambda,
+            fitted_coeffs[0],
+            fitted_coeffs[1],
+            fitted_coeffs[2],
+            fitted_coeffs[3],
+            bounds[0][5],
+        )
+        stage2_bounds_upper = (
+            fitted_lambda,
+            fitted_coeffs[0],
+            fitted_coeffs[1],
+            fitted_coeffs[2],
+            fitted_coeffs[3],
+            bounds[1][5],
+        )
+    else:
+        stage2_bounds_lower = (
+            fitted_lambda,
+            fitted_coeffs[0],
+            fitted_coeffs[1],
+            fitted_coeffs[2],
+            fitted_coeffs[3],
+            500.0,
+        )
+        stage2_bounds_upper = (
+            fitted_lambda,
+            fitted_coeffs[0],
+            fitted_coeffs[1],
+            fitted_coeffs[2],
+            fitted_coeffs[3],
+            10000.0,
+        )
+
+    stage2_result = fit_vivacity_polynomial(
+        load_data=load_data,
+        config_base=config_base,
+        initial_guess=stage2_initial,
+        bounds=(stage2_bounds_lower, stage2_bounds_upper),
+        regularization=regularization,
+        method=method,
+        verbose=verbose,
+        fit_h_base=True,
+    )
+
+    # Combine results
+    combined_result = stage2_result.copy()
+    combined_result["stage1_result"] = stage1_result
+    combined_result["stage2_result"] = stage2_result
+
+    if verbose:
+        print(".2f")
+        print(".2f")
+        print(".2f")
+
+    return combined_result
+
+
 def fit_vivacity_hybrid(
     load_data: pd.DataFrame,
     config_base: BallisticsConfig,
@@ -591,10 +725,6 @@ def fit_vivacity_hybrid(
         use_form_function=True,
         verbose=verbose,
     )
-
-    Lambda_base_form = fit_result_form["Lambda_base"]
-    alpha_form = fit_result_form.get("alpha", 0.0)
-    rmse_form = fit_result_form["rmse_velocity"]
 
     if verbose:
         print(".2f")

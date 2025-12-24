@@ -1,3 +1,3 @@
 """Parameter optimization and fitting routines."""
 
-# Temporarily disabled during restructuring
+from .fitting import fit_vivacity_polynomial, fit_vivacity_sequential

@@ -59,6 +59,20 @@ CREATE TABLE IF NOT EXISTS propellants (
     , grain_geometry TEXT DEFAULT 'spherical', alpha REAL DEFAULT 0.0, temp_sensitivity_sigma_per_K REAL DEFAULT 0.002, covolume_m3_per_kg REAL DEFAULT 0.001, grain_geometry_type TEXT, perforations_count INTEGER DEFAULT 0, grain_diameter_mm REAL, grain_length_mm REAL, web_thickness_mm REAL, coating TEXT, composition TEXT, grain_confidence TEXT DEFAULT 'medium', grain_sources TEXT
 );
 
+CREATE TABLE IF NOT EXISTS calibrated_propellants (
+    calibrated_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    firearm_id INTEGER NOT NULL,
+    bullet_id INTEGER NOT NULL,
+    propellant_id TEXT NOT NULL,
+    temperature_f REAL NOT NULL,
+    fitted_params TEXT,  -- JSON string of fitted parameters (lambda_base, coeffs, etc.)
+    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (firearm_id) REFERENCES firearms(firearm_id),
+    FOREIGN KEY (bullet_id) REFERENCES bullets(bullet_id),
+    FOREIGN KEY (propellant_id) REFERENCES propellants(name),
+    UNIQUE(firearm_id, bullet_id, propellant_id, temperature_f)
+);
+
 CREATE TABLE IF NOT EXISTS cases (
     case_id INTEGER PRIMARY KEY AUTOINCREMENT,
     manufacturer TEXT NOT NULL,
@@ -88,7 +102,7 @@ CREATE TABLE IF NOT EXISTS test_sessions (
     session_id INTEGER PRIMARY KEY AUTOINCREMENT,
     firearm_id INTEGER NOT NULL,
     bullet_id INTEGER NOT NULL,
-    propellant_id INTEGER NOT NULL,
+    propellant_id TEXT NOT NULL,
     case_id INTEGER,  -- Optional - can use generic case volume
 
     -- Environmental conditions
@@ -117,7 +131,7 @@ CREATE TABLE IF NOT EXISTS test_sessions (
 
     FOREIGN KEY (firearm_id) REFERENCES firearms(firearm_id),
     FOREIGN KEY (bullet_id) REFERENCES bullets(bullet_id),
-    FOREIGN KEY (propellant_id) REFERENCES propellants(propellant_id),
+    FOREIGN KEY (propellant_id) REFERENCES propellants(name),
     FOREIGN KEY (case_id) REFERENCES cases(case_id)
 );
 
