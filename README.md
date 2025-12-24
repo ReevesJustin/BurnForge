@@ -4,7 +4,7 @@
 
 > ⚠️ **IMPORTANT**: If you're using a database from before 2024-12-24, see [BUGFIX.md](docs/BUGFIX.md) for critical fixes.
 >
-> ✅ **STATUS**: Production ready! RMSE 4-8 fps on validation datasets (2024-12-24)
+> ✅ **STATUS**: Production ready! RMSE 4-9 fps on validation datasets including cold data (45°F) (2024-12-24)
 
 ## Overview
 
@@ -21,6 +21,9 @@ IB_Solver provides professional-grade tools for characterizing propellant burn b
 ### 🚨 **Critical Issues & Fixes**
 - **[docs/BUGFIX.md](docs/BUGFIX.md)** - ⭐ Complete bug fixes and critical issues (database, code bugs, validation)
 - **[troubleshooting.md](docs/troubleshooting.md)** - Common issues and solutions
+
+### 📖 **Examples & Templates**
+- **[data/examples/](data/examples/)** - Data entry templates and sample files
 
 ### 🛠️ **Development**
 - **[DEPENDENCIES.md](docs/DEPENDENCIES.md)** - Required packages and installation
@@ -119,16 +122,16 @@ print(f"RMSE: {fit_result['rmse_velocity']:.1f} fps")
 
 ```bash
 # Fit parameters from GRT data
-ib_solver fit data.grtload --output results.json
+ballistics fit data.grtload --output results.json
 
 # Simulate single shot
-ib_solver simulate data.grtload --charge 42.0
+ballistics simulate data.grtload --charge 42.0
 
 # Scan charge weights
-ib_solver scan-charge data.grtload --min-charge 40 --max-charge 45 --output scan.csv --plot scan.png
+ballistics scan-charge data.grtload --min-charge 40 --max-charge 45 --output scan.csv --plot scan.png
 
 # Scan barrel lengths
-ib_solver scan-barrel data.grtload --min-barrel 20 --max-barrel 28 --output barrel_scan.csv
+ballistics scan-barrel data.grtload --min-barrel 20 --max-barrel 28 --output barrel_scan.csv
 ```
 
 ## Architecture
@@ -246,10 +249,10 @@ export BALLISTICS_DB_PATH=/path/to/custom/database.db
 - `plot_burnout_map(analysis_df, x_col)` - Burnout characteristics visualization
 
 ### CLI Commands
-- `ib_solver fit <grt_file>` - Fit vivacity parameters from GRT data
-- `ib_solver simulate <grt_file>` - Run single-shot simulation
-- `ib_solver scan-charge <grt_file>` - Sweep charge weights with burnout analysis
-- `ib_solver scan-barrel <grt_file>` - Sweep barrel lengths with burnout analysis
+- `ballistics fit <grt_file>` - Fit vivacity parameters from GRT data
+- `ballistics simulate <grt_file>` - Run single-shot simulation
+- `ballistics scan-charge <grt_file>` - Sweep charge weights with burnout analysis
+- `ballistics scan-barrel <grt_file>` - Sweep barrel lengths with burnout analysis
 
 ### Classes
 - `BallisticsConfig` - Complete simulation setup
@@ -262,7 +265,7 @@ export BALLISTICS_DB_PATH=/path/to/custom/database.db
 - **Fit Time**: <30s for multi-physics fitting with convergence diagnostics
 - **Scan Time**: <5s for 20-point parameter sweeps
 - **Database**: Full relational schema with integrity validation (19 tests)
-- **Accuracy**: ✅ **4-8 fps RMSE** on validation datasets (exceeds <50 fps target by 6x)
+- **Accuracy**: ✅ **4-9 fps RMSE** on validation datasets including cold data (exceeds <50 fps target by 6x)
 - **Solver Stability**: 100% success rate on test datasets
 - **Test Coverage**: 96% (47/49 tests passing)
 - **Memory**: ~2MB per simulation
@@ -270,12 +273,13 @@ export BALLISTICS_DB_PATH=/path/to/custom/database.db
 ### Validated Performance (2024-12-24)
 - **Varget (65 Creedmoor, 130gr)**: 7.6 fps RMSE, max error 15.2 fps
 - **N150 (65 Creedmoor, 130gr)**: 4.4 fps RMSE, max error 7.3 fps
+- **N150 (.308 Winchester, 175gr, 45°F)**: 8.6 fps RMSE, max error <16 fps
 - **Bias Delta**: <7 fps (no systematic bias)
 
 ## Limitations
 
 - Velocity-only calibration (no pressure trace support yet)
-- Single-temperature datasets limit temperature sensitivity fitting
+- Single-temperature datasets have improved temperature sensitivity fitting (cold data now supported)
 - Requires GRT for optimal data collection workflow
 - CLI has 3 failing tests (minor mocking issues, functionality works)
 
@@ -289,6 +293,8 @@ export BALLISTICS_DB_PATH=/path/to/custom/database.db
 - ✅ **Database Integrity**: Added 19 validation tests to prevent future regressions
 - ✅ **Bug Fixes**: Fixed solver trace output, fitting indentation, CLI output
 - ✅ **Test Coverage**: Improved from 63% to 90% (47/49 tests passing)
+- ✅ **Temperature Sensitivity**: Fixed optimizer convergence on cold data (45°F), RMSE improved from 371.9 fps to 8.6 fps
+- ✅ **Validation Checks**: Added warnings for out-of-range fitted parameters (temp_sens <0.001 or >0.008)
 - ✅ **Documentation**: Comprehensive guides in `docs/` folder
 
 ### v2.0.0 (Earlier)

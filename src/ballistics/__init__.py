@@ -18,6 +18,15 @@ from .io.io import (
     metadata_to_config,
     export_fit_results,
 )
+from .analysis.analysis import (
+    burnout_scan_charge,
+    burnout_scan_barrel,
+    charge_ladder_analysis,
+)
+from .analysis.plotting import (
+    plot_velocity_fit,
+    plot_burnout_map,
+)
 
 __all__ = [
     "solve_ballistics",
@@ -34,4 +43,9 @@ __all__ = [
     "load_grt_project",
     "metadata_to_config",
     "export_fit_results",
+    "burnout_scan_charge",
+    "burnout_scan_barrel",
+    "charge_ladder_analysis",
+    "plot_velocity_fit",
+    "plot_burnout_map",
 ]

@@ -17,8 +17,8 @@ The IB_Solver workflow is designed for professional propellant characterization 
 
 #### 2. Data Import & Validation
 ```bash
-# Import GRT file
-python -m ballistics.cli import-grt path/to/project.grtload
+# Import GRT file (CLI)
+ballistics import-grt path/to/project.grtload
 
 # Or programmatically
 from ballistics import load_grt_project, metadata_to_config
