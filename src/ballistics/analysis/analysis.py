@@ -190,9 +190,7 @@ def charge_ladder_analysis(
                 fill_value=np.nan,
             )
 
-            target_charge = interp1d(
-                valid_data["charge_grains"], valid_data["muzzle_velocity_fps"]
-            )(target_velocity_fps)
+            target_charge = interp_func(target_velocity_fps)
 
             # Add interpolated point to results
             interp_row = pd.DataFrame(

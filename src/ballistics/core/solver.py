@@ -538,11 +538,13 @@ def solve_ballistics(
 
     # Add trace if requested
     if return_trace:
-        results["t"] = t
-        results["Z"] = Z
-        results["P"] = P
-        results["v"] = v
-        results["x"] = x
+        results["t"] = sol.t
+        results["Z"] = sol.y[0]
+        results["v"] = sol.y[1]
+        results["x"] = sol.y[2]
+        # Compute pressure trace
+        P_trace = [compute_pressure(sol.y[0, i], sol.y[1, i], sol.y[2, i]) for i in range(len(sol.t))]
+        results["P"] = P_trace
 
     # Performance profiling
     solve_time = time.time() - start_time

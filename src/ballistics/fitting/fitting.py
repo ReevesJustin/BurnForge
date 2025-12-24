@@ -271,56 +271,56 @@ def fit_vivacity_polynomial(
         ):
             return 1e10  # Large penalty for invalid parameters
 
-    # Compute max charge for weighting and fill ratio
-    max_charge = load_data["charge_grains"].max()
+        # Compute max charge for weighting and fill ratio
+        max_charge = load_data["charge_grains"].max()
 
-    residuals = []
-    weights = []
+        residuals = []
+        weights = []
 
-    for idx_row, row in load_data.iterrows():
-        # Update charge
-        config = copy(config_base)
-        config.charge_mass_gr = float(row["charge_grains"])  # type: ignore
+        for idx_row, row in load_data.iterrows():
+            # Update charge
+            config = copy(config_base)
+            config.charge_mass_gr = float(row["charge_grains"])  # type: ignore
 
-        # Apply physics parameters
-        config.propellant = copy(config.propellant)
-        config.propellant.Lambda_base = Lambda_base
-        config.propellant.poly_coeffs = coeffs
-        if use_form_function:
-            config.propellant.alpha = alpha
-        config.use_form_function = use_form_function
-        if fit_temp_sensitivity:
-            config.propellant.temp_sensitivity_sigma_per_K = temp_sens
-        if fit_covolume:
-            config.propellant.covolume_m3_per_kg = covolume
-        if fit_bore_friction:
-            config.bore_friction_psi = bore_fric
-        if fit_start_pressure:
-            config.start_pressure_psi = start_p
+            # Apply physics parameters
+            config.propellant = copy(config.propellant)
+            config.propellant.Lambda_base = Lambda_base
+            config.propellant.poly_coeffs = coeffs
+            if use_form_function:
+                config.propellant.alpha = alpha
+            config.use_form_function = use_form_function
+            if fit_temp_sensitivity:
+                config.propellant.temp_sensitivity_sigma_per_K = temp_sens
+            if fit_covolume:
+                config.propellant.covolume_m3_per_kg = covolume
+            if fit_bore_friction:
+                config.bore_friction_psi = bore_fric
+            if fit_start_pressure:
+                config.start_pressure_psi = start_p
 
-        # Solve ballistics
-        try:
-            results = solve_ballistics(config)
-            predicted_v = results["muzzle_velocity_fps"]
-            measured_v = float(row["mean_velocity_fps"])
-            residual = predicted_v - measured_v
-            residuals.append(residual)
+            # Solve ballistics
+            try:
+                results = solve_ballistics(config)
+                predicted_v = results["muzzle_velocity_fps"]
+                measured_v = float(row["mean_velocity_fps"])
+                residual = predicted_v - measured_v
+                residuals.append(residual)
 
-            # Weight by charge fraction and inverse variance if available
-            charge_weight = row["charge_grains"] / max_charge
-            if (
-                "velocity_sd" in row
-                and pd.notna(row["velocity_sd"])
-                and row["velocity_sd"] > 0
-            ):
-                weight = charge_weight / (row["velocity_sd"] ** 2)
-            else:
-                weight = charge_weight
-            weights.append(weight)
+                # Weight by charge fraction and inverse variance if available
+                charge_weight = row["charge_grains"] / max_charge
+                if (
+                    "velocity_sd" in row
+                    and pd.notna(row["velocity_sd"])
+                    and row["velocity_sd"] > 0
+                ):
+                    weight = charge_weight / (row["velocity_sd"] ** 2)
+                else:
+                    weight = charge_weight
+                weights.append(weight)
 
-        except Exception:
-            # If solver fails, return large penalty
-            return 1e10
+            except Exception:
+                # If solver fails, return large penalty
+                return 1e10
 
         # Calculate weighted RMSE for minimization
         residuals_np = np.array(residuals)

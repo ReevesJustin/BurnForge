@@ -94,7 +94,7 @@ def test_parse_metadata_missing_field():
         # Missing Cartridge Overall Length
     }
 
-    with pytest.raises(ValueError, match="Missing required metadata field"):
+    with pytest.raises(ValueError, match="Missing or empty required metadata field"):
         parse_metadata(metadata_raw)
 
 

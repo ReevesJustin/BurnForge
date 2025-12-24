@@ -15,6 +15,7 @@ from ballistics import (
     metadata_to_config,
     fit_vivacity_polynomial,
 )
+from ballistics.core.solver import solve_ballistics
 from ballistics.analysis.analysis import (
     burnout_scan_charge,
     burnout_scan_barrel,
@@ -52,7 +53,9 @@ def fit(
             fit_start_pressure=True,
         )
 
-        typer.echo(".1f.1f")
+        typer.echo(f"Fitted Lambda_base: {fit_results['Lambda_base']:.6f}")
+        typer.echo(f"Coefficients: {fit_results['coeffs']}")
+        typer.echo(f"RMSE: {fit_results['rmse_velocity']:.1f} fps")
 
         if output:
             import json
@@ -78,8 +81,6 @@ def simulate(
     typer.echo(f"Loading GRT file: {grt_file}")
 
     try:
-        from ballistics.core.solver import solve_ballistics
-
         metadata, _ = load_grt_project(str(grt_file))
         config = metadata_to_config(metadata)
 
@@ -89,7 +90,9 @@ def simulate(
         typer.echo("Simulating shot...")
         results = solve_ballistics(config)
 
-        typer.echo(".0f.0f.3f")
+        typer.echo(f"Muzzle Velocity: {results['muzzle_velocity_fps']:.0f} fps")
+        typer.echo(f"Peak Pressure: {results['peak_pressure_psi']:.0f} psi")
+        typer.echo(f"Final Z: {results['final_Z']:.3f}")
 
         if output:
             import json

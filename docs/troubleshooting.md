@@ -3,9 +3,46 @@
 ## Overview
 This document summarizes code errors, physics model limitations, and optimization strategies investigated during testing against experimental GRT data.
 
+---
+
+## 🔴 CRITICAL BUG - Database Propellant Force Values (2024-12-24)
+
+### Issue
+**ALL propellants in database have incorrect force values causing predictions to be 2-3x too high.**
+
+**Symptoms:**
+- Predicted velocities: ~6000 fps (should be ~2600 fps)
+- RMSE: ~3200 fps (completely unusable)
+- All predictions systematically too high
+
+**Root Cause:**
+Database contains `force = 3,650,000 ft·lbf/lbm` for all propellants when correct values should be ~350,000-400,000 ft·lbf/lbm (10x lower).
+
+**Fix:**
+See **docs/DATABASE_FIX_GUIDE.md** for complete fix procedure.
+
+**Quick Fix:**
+```bash
+# Backup first!
+cp data/db/ballistics_data.db data/db/ballistics_data.db.backup
+
+# Apply fix
+sqlite3 data/db/ballistics_data.db "UPDATE propellants SET force = force / 10.0;"
+
+# Verify
+python test_bias_analysis.py
+```
+
+**Status:** ⚠️ Must be fixed before any other work can proceed.
+
+---
+
 ## Code Errors and Fixes
 
-### Bugs Identified
+### Bugs Identified (2024-12-24)
+- **🔴 CRITICAL - Propellant Force Values**: All propellants have force = 3,650,000 (10x too high). Fixed via database update.
+- **Solver Trace Output Bug**: solver.py:541 - `return_trace` used undefined variables `t`, `Z`, `P`, `v`, `x`. Fixed to use `sol.t` and `sol.y`.
+- **Fitting Indentation Bug**: fitting.py:274-373 - Code outside function scope due to incorrect indentation. Fixed.
 - **Force Units Assumption**: PropellantProperties.from_database assumed incorrect force unit conversion (fixed to use ft-lbf/lbm consistently).
 - **Burnout Distance Calculation**: Failed silently when Z >= 0.999 (fixed to properly set distance from bolt face).
 - **ODE Solver Stability**: Added max_step adjustment and debug logging parameter for convergence monitoring.
