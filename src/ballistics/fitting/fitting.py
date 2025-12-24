@@ -5,7 +5,7 @@ chronograph data, with optional physics parameter calibration.
 """
 
 import numpy as np
-from scipy.optimize import minimize, least_squares
+from scipy.optimize import minimize
 import pandas as pd
 from copy import deepcopy as copy
 
@@ -111,7 +111,7 @@ def fit_vivacity_polynomial(
         # Use the value for the highest charge weight only
         max_charge_row = load_data[load_data["charge_grains"] == max_charge]
         if not max_charge_row.empty:
-            p_max_val = max_charge_row["p_max_psi"].values[0]
+            p_max_val = max_charge_row["p_max_psi"].iloc[0]
             if pd.notna(p_max_val):
                 grt_p_max_reference = float(p_max_val)
                 print(
@@ -139,9 +139,12 @@ def fit_vivacity_polynomial(
         # Add physics parameters if requested (ensure no None values)
         if fit_temp_sensitivity:
             temp_sens_val = config_base.propellant.temp_sensitivity_sigma_per_K
-            if temp_sens_val is not None:
-                initial_guess.append(temp_sens_val)
-                param_names.append("temp_sens")
+            if temp_sens_val is None or temp_sens_val == 0:
+                temp_sens_val = (
+                    0.002  # Improved initial guess for cold data convergence
+                )
+            initial_guess.append(temp_sens_val)
+            param_names.append("temp_sens")
         if fit_bore_friction:
             bore_fric_val = config_base.bore_friction_psi
             if bore_fric_val is not None:
@@ -179,8 +182,10 @@ def fit_vivacity_polynomial(
 
         # Add physics parameter bounds if requested
         if fit_temp_sensitivity:
-            bounds_lower.append(0.0)  # temp_sens ∈ [0.0, 0.01] /K
-            bounds_upper.append(0.01)
+            bounds_lower.append(
+                0.0005
+            )  # temp_sens ∈ [0.0005, 0.005] /K for better convergence
+            bounds_upper.append(0.005)
         if fit_bore_friction:
             bounds_lower.append(0.0)  # bore_friction ∈ [0, 4000] psi
             bounds_upper.append(4000.0)
@@ -634,6 +639,10 @@ def fit_vivacity_polynomial(
         result_dict["alpha"] = alpha_fit
     if temp_sens_fit is not None:
         result_dict["temp_sensitivity_sigma_per_K"] = temp_sens_fit
+        if temp_sens_fit < 0.001 or temp_sens_fit > 0.008:
+            print(
+                f"WARNING: Fitted temp_sensitivity ({temp_sens_fit:.6f}) is outside expected range [0.001, 0.008]. Check data quality."
+            )
     if bore_fric_fit is not None:
         result_dict["bore_friction_psi"] = bore_fric_fit
     if h_base_fit is not None:

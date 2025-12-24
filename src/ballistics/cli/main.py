@@ -51,6 +51,7 @@ def fit(
             fit_h_base=True,
             fit_temp_sensitivity=True,
             fit_start_pressure=True,
+            fit_bore_friction=True,
         )
 
         typer.echo(f"Fitted Lambda_base: {fit_results['Lambda_base']:.6f}")

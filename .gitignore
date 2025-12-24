@@ -24,6 +24,7 @@ wheels/
 venv/
 ENV/
 env/
+.venv
 
 # IDE
 .vscode/
@@ -51,5 +52,6 @@ results/
 Thumbs.db
 
 # AI CLI
-.claude/
-.opencode/
+.claude/*
+.opencode/*
+
