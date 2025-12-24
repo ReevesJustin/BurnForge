@@ -118,6 +118,15 @@ Effort: 4-6 hours | Impact: Enhanced fitting accuracy, model validation, robustn
 - Support for additional GRT file formats
 - COMPLETED: Max pressure calibration reference
 
+### Soft Measurement Feedback Feature for Peak Pressure Validation
+- Research and integrate published load data sources (SAAMI, manufacturer specs)
+- Implement data ingestion module for published load data
+- Add peak pressure comparison logic against simulated results
+- Implement soft constraint mechanism (Bayesian priors or penalty functions) for fitting
+- Update CLI output to display pressure validation feedback
+- Add unit tests for pressure validation functionality
+- Document feature in user guides with examples
+
 ## Low Priority Tasks
 
 ### 4. Documentation and Examples
