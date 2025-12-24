@@ -1,0 +1,2 @@
+[console_scripts]
+ballistics = cli.main:app
