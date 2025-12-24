@@ -4,7 +4,7 @@
 
 > ⚠️ **IMPORTANT**: If you're using a database from before 2024-12-24, see [BUGFIX.md](docs/BUGFIX.md) for critical fixes.
 >
-> ✅ **STATUS**: Production ready! RMSE 4-9 fps on validation datasets including cold data (45°F) (2024-12-24)
+>  **CURRENT STATUS**: RMSE 4-9 fps on validation datasets including cold data (45°F) (2024-12-24)
 
 ## Overview
 
@@ -14,25 +14,25 @@ IB_Solver provides professional-grade tools for characterizing propellant burn b
 
 **Complete documentation available in [`docs/`](docs/) folder:**
 
-### 🔥 **Start Here**
+###  **Start Here**
 - **[PROJECT_GOALS.md](docs/PROJECT_GOALS.md)** - Project vision, objectives, and technical approach
 - **[WORKFLOW.md](docs/WORKFLOW.md)** - Standard workflows for fitting and analysis
 
-### 🚨 **Critical Issues & Fixes**
+###  **Critical Issues & Fixes**
 - **[docs/BUGFIX.md](docs/BUGFIX.md)** - ⭐ Complete bug fixes and critical issues (database, code bugs, validation)
 - **[troubleshooting.md](docs/troubleshooting.md)** - Common issues and solutions
 
-### 📖 **Examples & Templates**
+###  **Examples & Templates**
 - **[data/examples/](data/examples/)** - Data entry templates and sample files
 
-### 🛠️ **Development**
+###  **Development**
 - **[DEPENDENCIES.md](docs/DEPENDENCIES.md)** - Required packages and installation
 
 ## Key Features
 
 - **Advanced ODE Integration**: scipy.integrate.solve_ivp with adaptive timestepping and event detection
 - **Multi-Physics Fitting**: Vivacity polynomials + heat transfer + EOS + friction + temperature effects + shot-start pressure + primer energy + charge-dependent losses
-- **Max Pressure Calibration**: Optional GRT-derived pressure reference for improved physical realism
+- **Max Pressure Calibration**: Optional "Soft" GRT-derived pressure reference or Published Load data pressure for improved physical realism
 - **Weighted Least Squares**: Charge-weighted residuals for improved low-charge accuracy
 - **Parameter Sweep Analysis**: Charge weight and barrel length scanning with burnout diagnostics
 - **Data Validation**: Automatic checks for fill ratios, velocity ranges, and data quality
@@ -75,7 +75,7 @@ config = BallisticsConfig(
     caliber_in=0.308,
     case_volume_gr_h2o=49.5,
     barrel_length_in=24.0,
-    cartridge_overall_length_in=2.810,
+    cartridge_overall_length_in=2.800,
     propellant=prop,
     bullet=bullet,
     temperature_f=70.0
@@ -175,7 +175,7 @@ Gordon's Reloading Tool (.grtload, .grtproject) - XML format with complete syste
 {
   "cartridge": ".308 Winchester",
   "barrel_length_in": 24.0,
-  "cartridge_overall_length_in": 2.810,
+  "cartridge_overall_length_in": 2.800,
   "bullet_mass_gr": 175.0,
   "case_volume_gr_h2o": 49.47,
   "propellant_name": "Varget",
@@ -184,8 +184,8 @@ Gordon's Reloading Tool (.grtload, .grtproject) - XML format with complete syste
   "p_initial_psi": 5000.0,
   "caliber_in": 0.308,
   "load_data": [
-    {"charge_grains": 40.0, "mean_velocity_fps": 2575, "velocity_sd": 9},
-    {"charge_grains": 41.0, "mean_velocity_fps": 2639, "velocity_sd": 10}
+    {"charge_grains": 42.0, "mean_velocity_fps": 2575, "velocity_sd": 26},
+    {"charge_grains": 43.5, "mean_velocity_fps": 2639, "velocity_sd": 18}
   ]
 }
 ```
@@ -265,7 +265,7 @@ export BALLISTICS_DB_PATH=/path/to/custom/database.db
 - **Fit Time**: <30s for multi-physics fitting with convergence diagnostics
 - **Scan Time**: <5s for 20-point parameter sweeps
 - **Database**: Full relational schema with integrity validation (19 tests)
-- **Accuracy**: ✅ **4-9 fps RMSE** on validation datasets including cold data (exceeds <50 fps target by 6x)
+- **Accuracy**: **4-9 fps RMSE** on validation datasets including cold data (exceeds <50 fps target by 6x)
 - **Solver Stability**: 100% success rate on test datasets
 - **Test Coverage**: 96% (47/49 tests passing)
 - **Memory**: ~2MB per simulation
@@ -278,9 +278,9 @@ export BALLISTICS_DB_PATH=/path/to/custom/database.db
 
 ## Limitations
 
-- Velocity-only calibration (no pressure trace support yet)
+- Velocity-only calibration (no pressure trace or transducer support yet)
 - Single-temperature datasets have improved temperature sensitivity fitting (cold data now supported)
-- Requires GRT for optimal data collection workflow
+- GRT project files recommended for optimal data collection workflow, JSON inputs as alternative
 - CLI has 3 failing tests (minor mocking issues, functionality works)
 
 ## Recent Updates
@@ -288,7 +288,7 @@ export BALLISTICS_DB_PATH=/path/to/custom/database.db
 ### v2.0.0+ (2024-12-24) - CRITICAL BUG FIX ✅
 - ✅ **CRITICAL**: Fixed database propellant force values (were 5x too high)
   - Before: RMSE ~3,200 fps (completely broken)
-  - After: RMSE 4-8 fps (production ready) ✅
+  - After: RMSE 4-8 fps ✅
   - See `docs/BUGFIX.md` for details
 - ✅ **Database Integrity**: Added 19 validation tests to prevent future regressions
 - ✅ **Bug Fixes**: Fixed solver trace output, fitting indentation, CLI output
