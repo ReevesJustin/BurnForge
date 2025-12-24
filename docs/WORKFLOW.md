@@ -84,6 +84,18 @@ fit_result = fit_vivacity_polynomial(
 - Residual pattern analysis (no systematic bias)
 - Vivacity positivity check
 
+**Advanced Validation (New):**
+```python
+from ballistics import leave_one_out_cv
+
+# Leave-one-out cross-validation for robustness
+loo_result = leave_one_out_cv(load_data, config)
+print(f"LOO RMSE: {loo_result['loo_rmse']:.1f} fps")
+
+# Bias detection is automatic in fit_vivacity_polynomial
+# Warnings appear for systematic bias or trends
+```
+
 **Analysis Tools:**
 - Burnout distance prediction
 - Pressure development curves

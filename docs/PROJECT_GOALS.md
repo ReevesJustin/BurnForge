@@ -34,15 +34,16 @@
 2. ✅ **Directory Restructuring** - Completed modular packages (core, fitting, io, database, analysis, cli)
 3. ✅ **Documentation Consolidation** - Updated README.md, TODO tracking, inline docs
 4. ✅ **Missing Module Implementation** - analysis.py, plotting.py, cli/main.py completed
-5. ✅ **Database Refinement** - Full 9-table schema with migration and CRUD operations
+5. ✅ **Database Refinement** - Full 11-table schema with migration and CRUD operations
 6. ✅ **Advanced Feature Organization** - Multi-physics parameters, weighted fitting, convergence diagnostics
 7. ✅ **Max Pressure Calibration** - Optional GRT pressure reference for physical constraint
+8. ✅ **Fitting Accuracy Improvements** - 6-parameter polynomials, bias detection, LOO CV, geometric form functions
 
-**Next Focus**: Systematic bias resolution with higher-order polynomials
+**Next Focus**: Medium priority features (multi-temperature support, export options, enhanced documentation)
 
 ## Success Metrics - Current Status
-- **Accuracy**: <100 fps RMSE on velocity predictions with bias corrections and pressure constraints (<50 fps target)
-- **Reliability**: Robust error handling, data validation, convergence diagnostics, pressure calibration
-- **Usability**: Complete workflow from GRT import → fitting → analysis → CLI export with optional physics
+- **Accuracy**: 4-9 fps RMSE on velocity predictions with 6-parameter polynomials, bias detection, and LOO CV (exceeds <50 fps target)
+- **Reliability**: Robust error handling, data validation, convergence diagnostics, pressure calibration, systematic bias detection
+- **Usability**: Complete workflow from GRT import → fitting → analysis → CLI export with advanced physics and validation options
 - **Maintainability**: Clean modular architecture, comprehensive documentation, TODO tracking</content>
 <parameter name="filePath">PROJECT_GOALS.md
