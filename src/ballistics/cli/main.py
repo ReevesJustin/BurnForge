@@ -1,4 +1,4 @@
-"""Command-line interface for IB_Solver ballistics calculations.
+"""Command-line interface for BurnForge ballistics calculations.
 
 This module provides a Typer-based CLI for fitting, simulation, and analysis
 of internal ballistics problems.
@@ -23,7 +23,7 @@ from ballistics.analysis.plotting import (
     plot_burnout_map,
 )
 
-app = typer.Typer(help="IB_Solver - Internal Ballistics Solver")
+app = typer.Typer(help="BurnForge - Internal Ballistics Solver")
 
 
 @app.command()

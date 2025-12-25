@@ -1,4 +1,4 @@
-# IB_Solver v2.0.0
+# BurnForge v2.0.0
 
 **Modular Python package for internal ballistics modeling with propellant characterization.**
 
@@ -8,7 +8,7 @@
 
 ## Overview
 
-IB_Solver provides tools for characterizing propellant burn behavior through multi-physics parameter fitting from chronograph velocity data. Supports velocity-only calibration and includes physics models for predicting propellant burnout distance.
+BurnForge provides tools for characterizing propellant burn behavior through multi-physics parameter fitting from chronograph velocity data. Supports velocity-only calibration and includes physics models for predicting propellant burnout distance.
 
 ## Documentation
 

@@ -1,6 +1,6 @@
-# IB_Solver Project TODO List
+# BurnForge Project TODO List
 
-This TODO list outlines the final implementation priorities for completing the IB_Solver v2.0.0 project.
+This TODO list outlines the final implementation priorities for completing the BurnForge v2.0.0 project.
 
 ## Current Status: v2.0.0 with Database Corrections
 - Database schema: 11-table relational design

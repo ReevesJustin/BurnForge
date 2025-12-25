@@ -1,4 +1,4 @@
-# IB_Solver v2.0.0 - Project Goals & Plan
+# BurnForge v2.0.0 - Project Goals & Plan
 
 ## Project Objective
 **Characterize propellant burn characteristics** through multi-physics parameter fitting from chronograph velocity data, enabling accurate prediction of propellant burnout distance and pressure development for ballisticians, engineers, and professional reloaders.

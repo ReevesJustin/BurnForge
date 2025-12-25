@@ -1,7 +1,7 @@
 # Proposed Directory Structure
 
 ```
-IB_Solver/
+BurnForge/
 ├── src/
 │   └── ballistics/           # Main package
 │       ├── __init__.py       # Public API exports

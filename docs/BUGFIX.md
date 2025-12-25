@@ -1,4 +1,4 @@
-# IB_Solver Bug Fixes and Critical Issues
+# BurnForge Bug Fixes and Critical Issues
 
 **Last Updated:** 2024-12-24  
 **Status:** All critical bugs fixed - solver now production-ready with RMSE 4-8 fps

@@ -1,9 +1,9 @@
-# IB_Solver Workflow Guide
+# BurnForge Workflow Guide
 
 ## Primary Workflow: Propellant Characterization
 
 ### Overview
-The IB_Solver workflow is designed for professional propellant characterization using chronograph velocity data. The process transforms experimental measurements into calibrated physics models that predict propellant burnout distance and pressure development.
+The BurnForge workflow is designed for professional propellant characterization using chronograph velocity data. The process transforms experimental measurements into calibrated physics models that predict propellant burnout distance and pressure development.
 
 ### Step-by-Step Workflow
 
@@ -174,13 +174,13 @@ config = BallisticsConfig(
 
 ### Integration with GRT Workflow
 
-#### Typical GRT → IB_Solver Workflow
+#### Typical GRT → BurnForge Workflow
 1. **GRT:** Collect chronograph data across charge ladder
 2. **GRT:** Save project file with complete metadata
-3. **IB_Solver:** Import GRT file
-4. **IB_Solver:** Fit multi-physics model
-5. **IB_Solver:** Validate results and update database
-6. **IB_Solver:** Generate analysis plots and reports
+3. **BurnForge:** Import GRT file
+4. **BurnForge:** Fit multi-physics model
+5. **BurnForge:** Validate results and update database
+6. **BurnForge:** Generate analysis plots and reports
 7. **GRT:** Use fitted parameters for load predictions (future integration)
 
 This workflow enables professional propellant characterization with scientific rigor while maintaining practical usability for reloaders.</content>

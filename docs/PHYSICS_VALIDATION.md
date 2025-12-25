@@ -1,7 +1,7 @@
 # Comprehensive Testing Strategy for Published Data Comparison Feature
 
 ## Overview
-The published data comparison feature validates IB_Solver physics models against established ballistic literature (primarily Carlucci & Jacobson examples). This ensures scientific accuracy and builds confidence in fitted parameters.
+The published data comparison feature validates BurnForge physics models against established ballistic literature (primarily Carlucci & Jacobson examples). This ensures scientific accuracy and builds confidence in fitted parameters.
 
 ## Test Categories
 
@@ -21,7 +21,7 @@ The published data comparison feature validates IB_Solver physics models against
 - Conflicting data from different literature references
 
 ### 2. Physics Model Validation Tests
-**Purpose**: Compare IB_Solver predictions against published results for known configurations.
+**Purpose**: Compare BurnForge predictions against published results for known configurations.
 
 **Test Cases**:
 - `test_velocity_prediction_accuracy`: RMSE < 5% compared to published velocities

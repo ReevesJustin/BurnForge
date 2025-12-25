@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Database migration script for IB_Solver.
+"""Database migration script for BurnForge.
 
 Upgrades the database schema from simple propellant storage
 to full relational design with system-specific characterization.
@@ -81,7 +81,7 @@ def main():
     """Command-line entry point."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Migrate IB_Solver database schema")
+    parser = argparse.ArgumentParser(description="Migrate BurnForge database schema")
     parser.add_argument(
         "--db-path",
         help="Database file path (default: from BALLISTICS_DB_PATH env var or data/db/ballistics_data.db)",
